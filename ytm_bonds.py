@@ -1,7 +1,7 @@
 import argparse
 
-def calculate_ytm(face_value: float, price: float, coupon_rate: float, years_to_maturity: int, payments_per_year:
-int = 1):
+def calculate_ytm(face_value: float, price: float, coupon_rate: float, years_to_maturity: int, accrued_interest:
+float, payments_per_year: int = 1):
     """
     Calculate the Yield to Maturity (YTM) of a bond.
 
@@ -10,13 +10,15 @@ int = 1):
     - price: The current market price of the bond as decimal value.
     - coupon_rate: The annual coupon rate (as a decimal, e.g., 0.05 for 5%).
     - years_to_maturity: The number of years until the bond matures.
+    - accrued_interest: The accrued interest since the last coupon payment.
     - payments_per_year: The number of coupon payments per year (default is 1).
+    
 
     Returns:
     - ytm: The Yield to Maturity (as a decimal).
     """
 
-    price = price * face_value
+    price = price * face_value + accrued_interest
 
     # Total number of payments
     total_payments = int(years_to_maturity * payments_per_year)
@@ -55,11 +57,13 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--price", type=float, help="Current market price of the bond (as a decimal value)")
     parser.add_argument("-cr", "--coupon_rate", type=float, help="Annual coupon rate (as a decimal)")
     parser.add_argument("-ytm", "--years_to_maturity", type=int, help="Years to maturity")
+    parser.add_argument("-ai", "--accrued_interest", type=float, default=0, help="Accrued interest since last coupon payment")
     parser.add_argument("-ppr", "--payments_per_year", type=int, default=1, help="Number of coupon payments per year")
 
     args = parser.parse_args()
 
-    ytm = calculate_ytm(args.face_value, args.price, args.coupon_rate, args.years_to_maturity, args.payments_per_year)
+    ytm = calculate_ytm(args.face_value, args.price, args.coupon_rate, args.years_to_maturity,
+                        args.accrued_interest,  args.payments_per_year)
     print(f"Yield to Maturity (YTM): {ytm:.4%}")
 
 
