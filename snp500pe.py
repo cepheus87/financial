@@ -59,6 +59,39 @@ class HysteresisLoop:
         """
         return min_val + (max_val - min_val) / (1 + np.exp(-k * (x - x0)))
 
+    @classmethod
+    def sigmoid_reverse(cls, y: np.ndarray, min_val: float, max_val: float, k: float, x0: float):
+        # reversed x = x0 - \frac{1}{k} \cdot \ln\left(\frac{\text{max_val} - \text{min_val}}{y - \text{min_val}} - 1\right)
+
+        x = x0 - (1 / k) * np.log( (max_val - min_val) / (y - min_val) - 1)
+        return x
+
+    def check_values(self, x: np.ndarray):
+
+        rise = asdict(self.rising_sigmoid)
+        x_dict = {"x": x}
+        rise.update(x_dict)
+        y_rise = self.sigmoid(**rise)
+
+        print("Rise sigmoid")
+        for x_, y_ in zip(x, y_rise):
+            print(x_, y_)
+
+        fall = asdict(self.falling_sigmoid)
+        fall.update(x_dict)
+        y_fall = self.sigmoid(**fall)
+
+        print("Fall sigmoid")
+        for x_, y_ in zip(x, y_fall):
+            print(x_, y_)
+
+        # results = sigmoid(check_values, min_val, max_val, k, x0_rise)
+        # for x_, y_ in zip(check_values, results):
+        #     print(x_, y_)
+        #
+        # y_rise = sigmoid(x, min_val, max_val, k, x0_rise)
+        # y_fall = sigmoid(x, min_val, max_val, k, x0_fall)
+
     def plot(self, x: np.ndarray):
         rise = asdict(self.rising_sigmoid)
         x_dict = {"x": x}
@@ -104,11 +137,27 @@ class HysteresisLoop:
         indexes = list(range(idx - self.slope_estim_dates_num, idx + 1))
         slope, intercept = np.polyfit(np.arange(len(indexes)), np.array(pes)[indexes], 1)
 
+        # case: pe ratio is rising for whole period
         if slope > 0 and snp500_pe > pes[idx]:
             current_sigmoid = asdict(self.rising_sigmoid)
             current_sigmoid["x"] = snp500_pe
             return self.sigmoid(**current_sigmoid)
-        else: #TODO handle other 3 cases
+        # case: pe ratio is rising in previous periods, but now it is falling.
+        elif slope > 0 and snp500_pe < pes[idx]:
+            current_sigmoid = asdict(self.rising_sigmoid)
+            current_sigmoid["x"] = pes[idx]
+            non_stock_part = self.sigmoid(**current_sigmoid)
+            other_sigmoid_y = asdict(self.falling_sigmoid)
+            other_sigmoid_y["y"] = non_stock_part
+            pe_to_change_to_other_sigmoid = self.sigmoid_reverse(**other_sigmoid_y)
+            # move to another sigmoid
+            if pe_to_change_to_other_sigmoid > snp500_pe:
+                other_sigmoid_x = asdict(self.falling_sigmoid)
+                other_sigmoid_x["x"] = snp500_pe
+                return self.sigmoid(**other_sigmoid_x)
+            else:
+                return non_stock_part
+        else: #TODO handle other 2 cases
             current_sigmoid = self.falling_sigmoid
 
 
@@ -246,13 +295,38 @@ if __name__ == "__main__":
     k = 0.5
 
     hysteresis_loop = HysteresisLoop(x0_rise, x0_fall, slope=k)
-    hysteresis_loop.plot(x)
+    check_values_x = np.arange(10, 41, 2.5)
+    hysteresis_loop.check_values(check_values_x)
+
+    # test for sigmoid, reverse
+    # rise_base = asdict(hysteresis_loop.rising_sigmoid)
+    # x_dict = {"x": check_values_x}
+    # from copy import deepcopy
+    #
+    # rise = deepcopy(rise_base)
+    # rise2 = deepcopy(rise_base)
+    # rise.update(x_dict)
+    #
+    #
+    # y_rise = hysteresis_loop.sigmoid(**rise)
+    # rise2.update({"y": y_rise})
+    #
+    # for x_, y_, x_rev in zip(check_values_x, y_rise, hysteresis_loop.sigmoid_reverse(**rise2)):
+    #     print(x_, y_, x_rev )
+
+    # hysteresis_loop.plot(x)
+
+
+
     hysteresis_loop.historical_data = extracted
     non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 25)
+    non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 23)
+    non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 16)
+    non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 12)
 
 
 
-    check_values = np.arange(10, 40, 2.5)
+    a = 1
     # results = sigmoid(check_values, min_val, max_val, k, x0_rise)
     # for x_, y_ in zip(check_values, results):
     #     print(x_, y_)
