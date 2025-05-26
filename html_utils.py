@@ -1,7 +1,7 @@
 import bs4
 import requests
 from bs4 import BeautifulSoup
-from typing import Optional
+from typing import Optional, Tuple
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0"
@@ -48,4 +48,14 @@ def fetch_website_text(url: str) -> Optional[str]:
     if soup is None:
         return None
     return soup.get_text()
+
+def fetch_website_text_with_soup(url: str) -> Tuple[Optional[str], bs4.BeautifulSoup]:
+
+    # Parse the HTML content using BeautifulSoup
+    soup = website_get_soup(url)
+
+    # Extract and return the text content
+    if soup is None:
+        return None
+    return soup.get_text(), soup
 
