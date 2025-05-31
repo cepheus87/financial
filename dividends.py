@@ -1,17 +1,22 @@
 import argparse
 import json
 import os
-from codecs import ignore_errors
+import random
+from tqdm import tqdm
 
 import bs4
 import pandas as pd
 from pathlib import Path
+from time import sleep
+from copy import deepcopy
+import dateutil
+import re
 
 from html_utils import fetch_website_text, fetch_website_text_with_soup
 
 ISIN_PATH = os.path.join("data", "isin.json")
 BASE_DIVIDEND_PATH = os.path.join("data", "dividends")
-
+BASE_COMPANIES_PATH = os.path.join("data", "companies")
 
 BASE_URL = "https://www.stockwatch.pl"
 URL_ARISTOCRATS = "https://www.stockwatch.pl/dywidendowi-arystokraci"
@@ -42,6 +47,21 @@ def get_company_name_from_stockwatch(url: str) -> str:
     path = Path(url)
     name = path.name
     return name.split(",")[0]
+
+def check_and_correct_row(row: list, header: list) -> list:
+    if len(row) == len(header):
+        pass
+    elif len(row) + 1 == len(header):
+        row = row + [""]
+    else:
+        try:
+            dateutil.parser.parse(row[3])
+        except dateutil.parser.ParserError as e:
+            row.insert(3, "")
+
+        row = row + [""] * (len(header) - len(row))
+
+    return row
 
 def get_data_of_single_company(url: str, ignore_save_errors: bool = False) -> pd.DataFrame:
 
@@ -78,18 +98,41 @@ def get_data_of_single_company(url: str, ignore_save_errors: bool = False) -> pd
     table_headers.insert(3, "Data Dyw")
 
     # select idx of beginning of each row (company name)
-    idxes = [i for i, val in enumerate(data[data_idxes["data"]]) if val == data[data_idxes["data"]][0]]
-    idxes.append(len(data[data_idxes["data"]]))
+    divid_table = deepcopy(data[data_idxes["data"]])
+    company_name = divid_table[0]
+    k = 1
+    while data[data_idxes["data"] + k][0] == company_name:
+        divid_table += data[data_idxes["data"] + k]
+        k += 1
+
+    idxes = [i for i, val in enumerate(divid_table) if val == company_name]
+    idxes.append(len(divid_table))
 
     rows = list()
     for i in range(len(idxes) - 1):
-        rows.append(data[data_idxes["data"]][idxes[i]:idxes[i + 1]])
+        row = divid_table[idxes[i]:idxes[i + 1]]
+        if len(row) > 3:
+            rows.append(check_and_correct_row(row, table_headers))
+        else:
+            raise RuntimeError(f"Something went wrong for {company_name} at {url}.")
 
-    for i in range(len(rows)):
-        if len(rows[i]) != len(table_headers):
-            rows[i] = rows[i] + [""] * (len(table_headers) - len(rows[i]))
+    df = pd.DataFrame(rows, columns=table_headers)
+    years = df.iloc[:,1].apply(get_year)
 
-    return pd.DataFrame(rows, columns=table_headers)
+    df["Rok"] = years
+    df.sort_values(by="Rok", inplace=True)
+    return df
+
+def get_year(text: str) -> int:
+
+    pattern = r"\d{4}-\d{2}-\d{2}"
+    match = re.search(pattern, text)
+    if match:
+        date_str = match.group(0)
+        year = int(date_str.split("-")[0])
+        return year
+    else:
+        raise ValueError(f"No valid date found in the text: {text}")
 
 def get_data_of_aristocrats(url: str, aristoctrat_years: int = 10, save_table: bool = True) -> pd.DataFrame:
 
@@ -171,20 +214,45 @@ def get_companies_links(soup: bs4.BeautifulSoup, names: list[str]) -> dict:
     return found_links
 
 
+def save_companies_data(df: pd.DataFrame, company_name: str, ignore_save_errors: bool = False):
+    """
+    Saves the data of a single company to a CSV file.
+    :param df: DataFrame containing the data of the company
+    :param company_name: Name of the company
+    :param ignore_save_errors: If True, ignores errors when saving the data
+    """
+    save_path = Path(BASE_COMPANIES_PATH) / f"{company_name}.csv"
+    if save_path.exists() and not ignore_save_errors:
+        raise RuntimeError(f"Data for {company_name} already exists in {save_path}")
+
+    os.makedirs(BASE_COMPANIES_PATH, exist_ok=True)
+    df.to_csv(save_path, index=False)
+    print(f"Saved data for {company_name} to {save_path}")
 
 def main(args: argparse.Namespace):
 
+#     df = get_data_of_single_company("https://www.stockwatch.pl/gpw/lpp,notowania,dywidendy.aspx",
+#                                     ignore_save_errors=True)
+#     save_companies_data(df, "lpp", ignore_save_errors=True)
 
-    # Fetch the website text
-    # text = fetch_website_text(args.url)
-    #
-    # if not text:
-    #     raise RuntimeError(f"Failed to fetch data from {args.url}")
+    company_links = json.load(open(os.path.join(BASE_DIVIDEND_PATH, "aristocrats_5_years_links.json"), "r"))
 
-    get_data_of_aristocrats(URL_ARISTOCRATS, 5, True)
+    for company_name, url in tqdm(company_links.items()):
+        save_path = Path(BASE_COMPANIES_PATH) / f"{company_name}.csv"
+        if not os.path.exists(save_path):
 
-    df = get_data_of_single_company("https://www.stockwatch.pl/gpw/sniezka,notowania,dywidendy.aspx",
-                                    ignore_save_errors=True)
+            s = random.randint(3,7)
+            sleep(s)
+            try:
+                df = get_data_of_single_company(url, ignore_save_errors=True)
+                save_companies_data(df, company_name, ignore_save_errors=True)
+            except Exception as e:
+                print(f"Failed for {url}")
+                continue
+
+
+    # df = get_data_of_single_company("https://www.stockwatch.pl/gpw/sniezka,notowania,dywidendy.aspx",
+    #                             ignore_save_errors=True)
 
 
 
