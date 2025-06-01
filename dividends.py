@@ -9,7 +9,7 @@ import pandas as pd
 from pathlib import Path
 from time import sleep
 from copy import deepcopy
-import dateutil
+from datetime import datetime
 import re
 
 from html_utils import fetch_website_text, fetch_website_text_with_soup
@@ -50,15 +50,16 @@ def get_company_name_from_stockwatch(url: str) -> str:
 
 def check_and_correct_row(row: list, header: list) -> list:
     if len(row) == len(header):
-        pass
-    elif len(row) + 1 == len(header):
+        return row
+
+    try:
+        datetime.strptime(row[3], "%Y-%m-%d")
+    except ValueError as e:
+        row.insert(3, "")
+
+    if len(row) + 1 == len(header):
         row = row + [""]
     else:
-        try:
-            dateutil.parser.parse(row[3])
-        except dateutil.parser.ParserError as e:
-            row.insert(3, "")
-
         row = row + [""] * (len(header) - len(row))
 
     return row
@@ -231,9 +232,9 @@ def save_companies_data(df: pd.DataFrame, company_name: str, ignore_save_errors:
 
 def main(args: argparse.Namespace):
 
-#     df = get_data_of_single_company("https://www.stockwatch.pl/gpw/lpp,notowania,dywidendy.aspx",
-#                                     ignore_save_errors=True)
-#     save_companies_data(df, "lpp", ignore_save_errors=True)
+    # df = get_data_of_single_company("https://www.stockwatch.pl/gpw/tsgames,notowania,dywidendy.aspx",
+    #                                 ignore_save_errors=True)
+    # save_companies_data(df, "tsgames", ignore_save_errors=True)
 
     company_links = json.load(open(os.path.join(BASE_DIVIDEND_PATH, "aristocrats_5_years_links.json"), "r"))
 
