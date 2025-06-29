@@ -25,6 +25,7 @@ def get_dividends_entry_values(dividend_payment: float, dividend_in_currency: fl
         currency_rate = dividend_for_unit / dividend_in_currency
         commission_in_PLN = 0
 
+    print(f"Full dividend in currency: {dividend_in_currency * units:.5f}")
     print(f"Currency rate: {currency_rate:.5f}")
     print(f"Commission PLN: {commission_in_PLN:.5f}")
 
