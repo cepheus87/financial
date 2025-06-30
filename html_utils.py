@@ -59,3 +59,14 @@ def fetch_website_text_with_soup(url: str) -> Tuple[Optional[str], bs4.Beautiful
         return None
     return soup.get_text(), soup
 
+def get_binary_response(url: str, save_path: str, headers: dict = HEADERS):
+    try:
+        # Send a GET request to the URL
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+
+        with open(save_path, 'wb') as file:
+            file.write(response.content)
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")

@@ -2,3 +2,4 @@ numpy
 matplotlib
 beautifulsoup4
 requests
+xlrd
