@@ -17,16 +17,17 @@ def get_entry_values(full_cost: float, commission: float, price_in_currency: flo
 
 
     if sell:
-        cost_no_commission = full_cost
-        currency_rate = cost_no_commission / (units * price_in_currency)
-        commission_in_PLN = commission * (cost_no_commission * (1 + commission))
+        commission = 0.00522
+        currency_rate = full_cost / (units * price_in_currency)
+        commission_in_PLN = get_commision_value(commission, full_cost)
+        # commission_in_PLN = commission * (cost_no_commission * (1 + commission))
     else:
         if commission < 1:
-            cost_no_commission = full_cost / (1 + commission)
+            # cost_no_commission = full_cost / (1 + commission)
             commission_in_PLN = get_commision_value(commission, full_cost)
 
         else:
-            cost_no_commission = full_cost - commission
+            # cost_no_commission = full_cost - commission
             commission_in_PLN = commission
 
         currency_rate = full_cost / (units * price_in_currency)
