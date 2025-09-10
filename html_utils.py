@@ -68,5 +68,7 @@ def get_binary_response(url: str, save_path: str, headers: dict = HEADERS):
         with open(save_path, 'wb') as file:
             file.write(response.content)
 
+            return True
+
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")

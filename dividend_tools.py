@@ -1,12 +1,17 @@
 from copy import deepcopy
 from datetime import datetime
 import json
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 import pandas as pd
 from pathlib import Path
 import re
 
+
 from html_utils import fetch_website_text
+from utils_data import change_column_names
+from utils_stock_price import get_stock_prices_yearly
 
 BASE_COMPANIES_PATH = os.path.join("data", "companies")
 ISIN_PATH = os.path.join("data", "isin.json")
@@ -198,3 +203,156 @@ def get_isin_of_company(company_name: str) -> str:
     if not isin:
         raise ValueError(f"ISIN for {company_name} not found in {ISIN_PATH}")
     return isin
+
+# plotting functions
+
+def save_div_plots(company_name: str):
+    def check_results(company: str) -> bool:
+        return os.path.exists(os.path.join("data", "results", company))
+
+    comp_file = f"{company_name}.csv"
+    company_path = Path("data") / "companies" / comp_file
+    df_div = prepare_div_df(company_path)
+
+
+    company_path = Path("data") / "results" / comp_file
+    df_res = prepare_results_df(company_path)
+
+    if check_results(comp_file):
+        prepare_div_results_plots(df_div, df_res, "data/plots")
+    else:
+        prepare_div_plot(df_div, "data/plots")
+
+
+def prepare_div_df(file_path: str) -> pd.DataFrame:
+    df = pd.read_csv(file_path)
+    df.columns = change_column_names(df.columns)
+    df["dyw_na_akcje"] = df["dyw_na_akcje"].apply(to_float)
+    df["stopa"] = df["stopa"].apply(to_float)
+    # df["rok"] = pd.to_datetime(df["data_dyw"]).apply(lambda x: x.year)
+
+    return df
+
+def to_float(val: str) -> float:
+    if isinstance(val, str):
+        val = val.replace(",", ".")
+        if "\xa0" in val:
+            val = val.replace('\xa0', "")
+        if "%" in val:
+            val = val.replace("%", "")
+            val = float(val)
+            val = val * 0.01
+        elif " (" in val:
+            val = val.split(" ")[0]
+            val = float(val)
+        else:
+            val = float(val)
+    return val
+
+
+def prepare_results_df(file_path: str) -> pd.DataFrame:
+    df = pd.read_csv(file_path)
+    df.columns = change_column_names(df.columns)
+    for col in df.columns:
+        df[col] = df[col].apply(to_float)
+    # df["dyw_na_akcje"] = df["dyw_na_akcje"].apply(to_float)
+    # df["stopa"] = df["stopa"].apply(to_float)
+    # df["rok"] = pd.to_datetime(df["data_dyw"]).apply(lambda x: x.year)
+
+    return df
+
+def add_same_years(df: pd.DataFrame) -> pd.DataFrame:
+    years = df["rok"].unique()
+    df2 = df.groupby("rok")[["dyw_na_akcje", "stopa"]].sum()
+    df2.reset_index(inplace=True, drop=False)
+    df2["spolka"] = df["spolka"].unique()[0]
+    return df2
+
+
+def prepare_div_plot(df: pd.DataFrame, output_path: str):
+    os.makedirs(output_path, exist_ok=True)
+
+    df = add_same_years(df)
+
+    fig, ax1 = plt.subplots()
+
+    # Bar plot on left y-axis
+    ax1.bar(df["rok"], df["dyw_na_akcje"], color="skyblue", label="dyw_na_akcje")
+    ax1.set_ylabel("dyw_na_akcje (bar)", color="skyblue")
+    ax1.set_xlabel("Rok")
+
+    coeffs = np.polyfit(df["rok"], df["dyw_na_akcje"], 1)
+    dyw_na_akcje_fit = np.polyval(coeffs, df["rok"])
+    ax1.plot(df["rok"], dyw_na_akcje_fit, 'b--', label='Dyw na akcje fit')
+
+    # Line plot on right y-axis
+    ax2 = ax1.twinx()
+    ax2.plot(df["rok"], df["stopa"], color="red", marker="o", label="stopa")
+    ax2.set_ylabel("stopa (line)", color="red")
+
+    coeffs = np.polyfit(df["rok"], df["stopa"], 1)
+    stopa_fit = np.polyval(coeffs, df["rok"])
+    ax2.plot(df["rok"], stopa_fit, 'r--', label='stopa fit')
+
+    company_name = df.spolka.unique()[0].lower()
+
+    fig.suptitle(company_name)
+    fig.legend(loc="upper left")
+
+    plt.tight_layout()
+
+    save_file = f"{company_name}.png"
+    fig.savefig(os.path.join(output_path, save_file))
+    print(f"Saved plot with dividends only to {os.path.join(output_path, save_file)}")
+
+    plt.close()
+
+    # plt.show()
+
+
+def prepare_div_results_plots(df_div: pd.DataFrame, df_results: pd.DataFrame, output_path: str):
+    df_div = add_same_years(df_div)
+
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
+
+    # First subplot: bar and line with twin y-axis
+    ax1.bar(df_div["rok"], df_div["dyw_na_akcje"], color="skyblue", label="dyw_na_akcje")
+    ax1.set_ylabel("dyw_na_akcje (bar)", color="skyblue")
+    ax1.set_xlabel("Rok")
+
+    coeffs = np.polyfit(df_div["rok"], df_div["dyw_na_akcje"], 1)
+    dyw_na_akcje_fit = np.polyval(coeffs, df_div["rok"])
+    ax1.plot(df_div["rok"], dyw_na_akcje_fit, 'b--', label='Dyw na akcje fit')
+
+    ax2 = ax1.twinx()
+    ax2.plot(df_div["rok"], df_div["stopa"], color="red", marker="o", label="stopa")
+    ax2.set_ylabel("stopa (line)", color="red")
+    coeffs = np.polyfit(df_div["rok"], df_div["stopa"], 1)
+    stopa_fit = np.polyval(coeffs, df_div["rok"])
+    ax2.plot(df_div["rok"], stopa_fit, 'r--', label='stopa fit')
+
+    company_name = df_div.spolka.unique()[0].lower()
+    fig.suptitle(company_name)
+    fig.legend(loc="upper left")
+
+    # Second subplot: results plot
+    ax3.plot(df_results["rok"], df_results["zysk_netto"], marker="o", color="lightgreen", label="zysk_netto (line)")
+    ax3.set_xlabel("Rok")
+    ax3.set_ylabel("zysk_netto (line)", color="green")
+    ax3.set_title("Zysk netto (line plot)")
+
+    coeffs = np.polyfit(df_results["rok"], df_results["zysk_netto"], 1)
+    zysk_netto_fit = np.polyval(coeffs, df_results["rok"])
+    ax3.plot(df_results["rok"], zysk_netto_fit, 'g--', label='Zysk netto fit')
+    ax3.hlines(y=0, xmin=df_results["rok"].min(), xmax=df_results["rok"].max(), linewidth=3, color='r')
+
+    ax3.legend(loc="upper center")
+
+    plt.tight_layout()
+
+    save_file = f"{company_name}.png"
+    fig.savefig(os.path.join(output_path, save_file))
+    print(f"Saved plot with results to {os.path.join(output_path, save_file)}")
+
+    plt.close()
+    # plt.show()
