@@ -210,6 +210,9 @@ def save_div_plots(company_name: str):
     def check_results(company: str) -> bool:
         return os.path.exists(os.path.join("data", "results", company))
 
+    output = os.path.join("data", "plots")
+    os.makedirs(output, exist_ok=True)
+
     comp_file = f"{company_name}.csv"
     company_path = Path("data") / "companies" / comp_file
     df_div = prepare_div_df(company_path)
@@ -219,9 +222,9 @@ def save_div_plots(company_name: str):
     df_res = prepare_results_df(company_path)
 
     if check_results(comp_file):
-        prepare_div_results_plots(df_div, df_res, "data/plots")
+        prepare_div_results_plots(df_div, df_res, output)
     else:
-        prepare_div_plot(df_div, "data/plots")
+        prepare_div_plot(df_div, output)
 
 
 def prepare_div_df(file_path: str) -> pd.DataFrame:
