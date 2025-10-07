@@ -288,6 +288,8 @@ def prepare_div_plot(df: pd.DataFrame, output_path: str):
     dyw_na_akcje_fit = np.polyval(coeffs, df["rok"])
     ax1.plot(df["rok"], dyw_na_akcje_fit, 'b--', label='Dyw na akcje fit')
 
+    ax1.grid(True)
+
     # Line plot on right y-axis
     ax2 = ax1.twinx()
     ax2.plot(df["rok"], df["stopa"], color="red", marker="o", label="stopa")
@@ -338,6 +340,8 @@ def prepare_div_results_plots(df_div: pd.DataFrame, df_results: pd.DataFrame, ou
     fig.suptitle(company_name)
     fig.legend(loc="upper left")
 
+    ax1.grid(True)
+
     # Second subplot: results plot
     ax3.plot(df_results["rok"], df_results["zysk_netto"], marker="o", color="lightgreen", label="zysk_netto (line)")
     ax3.set_xlabel("Rok")
@@ -348,6 +352,8 @@ def prepare_div_results_plots(df_div: pd.DataFrame, df_results: pd.DataFrame, ou
     zysk_netto_fit = np.polyval(coeffs, df_results["rok"])
     ax3.plot(df_results["rok"], zysk_netto_fit, 'g--', label='Zysk netto fit')
     ax3.hlines(y=0, xmin=df_results["rok"].min(), xmax=df_results["rok"].max(), linewidth=3, color='r')
+
+    ax3.grid(True)
 
     ax3.legend(loc="upper center")
 
