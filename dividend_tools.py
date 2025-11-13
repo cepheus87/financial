@@ -17,6 +17,8 @@ BASE_COMPANIES_PATH = os.path.join("data", "companies")
 ISIN_PATH = os.path.join("data", "isin.json")
 BASE_COMPANIES_RESULTS_PATH = os.path.join("data", "results")
 
+YEARS_RANGE = 15
+
 def get_data_of_single_company(url: str, ignore_save_errors: bool = False) -> pd.DataFrame:
 
     def flatten(data_idxes: dict) -> dict:
@@ -316,7 +318,12 @@ def prepare_div_plot(df: pd.DataFrame, output_path: str):
 
 
 def prepare_div_results_plots(df_div: pd.DataFrame, df_results: pd.DataFrame, output_path: str):
+    max_year = max(df_div["rok"].max(), df_results["rok"].max())
+    df_results = df_results[df_results["rok"] >= max_year - YEARS_RANGE]
+
+
     df_div = add_same_years(df_div)
+    df_div = df_div[df_div["rok"] >= max_year - YEARS_RANGE]
 
     fig, (ax1, ax3) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
 
