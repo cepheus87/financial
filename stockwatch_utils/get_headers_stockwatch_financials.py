@@ -1,6 +1,6 @@
 import re
 
-def extract_column_names(text):
+def extract_header_names(text):
     multicolumn_names = [
     "Zysk brutto na sprzedaży", "Zysk netto akcjonariuszy większościowych",
         "Przepływy inwestycyjne", "Rzeczowe aktywa trwałe",
@@ -229,5 +229,5 @@ dynamika r/r					+29,92%			+20,97%
 
 if __name__ == "__main__":
 
-    column_names = extract_column_names(sample_text)
+    column_names = extract_header_names(sample_text)
     print(column_names)
