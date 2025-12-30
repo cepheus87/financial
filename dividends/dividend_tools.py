@@ -1,24 +1,19 @@
 from copy import deepcopy
 from datetime import datetime
-import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-from pathlib import Path
-import re
 
+from utils.html_utils import fetch_website_text
+from utils.utils_data import change_column_names
 
-from html_utils import fetch_website_text
-from utils_data import change_column_names
-from utils_stock_price import get_stock_prices_yearly
+from utils.get_headers_stockwatch_financials import extract_header_names as extract_headers
+from utils.get_headers_stockwatch_financials import sample_text as sample_financial_text
 
-from stockwatch_utils.get_headers_stockwatch_financials import extract_header_names as extract_headers
-from stockwatch_utils.get_headers_stockwatch_financials import sample_text as sample_financial_text
-
-BASE_COMPANIES_PATH = os.path.join("data", "companies")
-ISIN_PATH = os.path.join("data", "isin.json")
-BASE_COMPANIES_RESULTS_PATH = os.path.join("data", "results")
+BASE_COMPANIES_PATH = os.path.join("../data", "companies")
+ISIN_PATH = os.path.join("../data", "isin.json")
+BASE_COMPANIES_RESULTS_PATH = os.path.join("../data", "results")
 
 YEARS_RANGE = 15
 
@@ -214,17 +209,17 @@ def get_isin_of_company(company_name: str) -> str:
 
 def save_div_plots(company_name: str):
     def check_results(company: str) -> bool:
-        return os.path.exists(os.path.join("data", "results", company))
+        return os.path.exists(os.path.join("../data", "results", company))
 
-    output = os.path.join("data", "plots")
+    output = os.path.join("../data", "plots")
     os.makedirs(output, exist_ok=True)
 
     comp_file = f"{company_name}.csv"
-    company_path = Path("data") / "companies" / comp_file
+    company_path = Path("../data") / "companies" / comp_file
     df_div = prepare_div_df(company_path)
 
 
-    company_path = Path("data") / "results" / comp_file
+    company_path = Path("../data") / "results" / comp_file
     df_res = prepare_results_df(company_path)
 
     if check_results(comp_file):
@@ -419,7 +414,7 @@ def get_company_financial_data(company_sw_url: str) -> pd.DataFrame:
     # data = []
     # TODO:
     import pickle
-    with open("asbis_financial_raw.plk", "rb") as file:
+    with open("../asbis_financial_raw.plk", "rb") as file:
         data = pickle.load(file)
 
     if not data:

@@ -2,7 +2,7 @@ import numpy as np
 from typing import Tuple, List
 
 
-from utils import calculate_compound_interest_yearly, calculate_compound_interest
+from bonds.utils import calculate_compound_interest_yearly, calculate_compound_interest
 
 
 
