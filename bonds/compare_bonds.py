@@ -1,9 +1,8 @@
 import argparse
 import matplotlib.pyplot as plt
 
-from bonds import anti_inflation_bond
+from bonds.bonds import anti_inflation_bond
 
-# def draw_graph(
 def draw_graph_total_amount(total_amounts1: list, total_amounts2: list):
     print(total_amounts1[-1], total_amounts2[-1])
 
