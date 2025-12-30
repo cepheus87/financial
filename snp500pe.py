@@ -1,6 +1,4 @@
 import argparse
-import requests
-from bs4 import BeautifulSoup
 import re
 import dateutil
 import numpy as np
@@ -11,6 +9,7 @@ from datetime import datetime
 import os
 import json
 
+from html_utils import fetch_website_text
 
 @dataclass
 class Sigmoid:
@@ -23,8 +22,15 @@ class HysteresisLoop:
     def __init__(self, x0_rise: float, x0_fall: float, slope: float = 0.5):
         self.rising_sigmoid = Sigmoid(x0=x0_rise, k=slope)
         self.falling_sigmoid = Sigmoid(x0=x0_fall, k=slope)
+        self.sigmoids = {"rising": self.rising_sigmoid, "falling": self.falling_sigmoid}
         self._historical_data = None
         self.slope_estim_dates_num = 5
+        self.current_sigmoid = None
+        self.other_sigmoid = None
+        self._min_level = 0
+        self._max_level = 0
+        self._last_pe_ratio = 0
+
 
     @property
     def historical_data(self):
@@ -112,16 +118,16 @@ class HysteresisLoop:
         plt.legend()
         plt.show()
 
-    def chceck_which_sigmoid(self, date: datetime) -> Sigmoid:
-        """
-        Check which sigmoid to use based on the date.
-        """
-        if date.month >= 6:
-            return self.rising_sigmoid
-        else:
-            return self.falling_sigmoid
+    # def chceck_which_sigmoid(self, date: datetime) -> Sigmoid:
+    #     """
+    #     Check which sigmoid to use based on the date.
+    #     """
+    #     if date.month >= 6:
+    #         return self.rising_sigmoid
+    #     else:
+    #         return self.falling_sigmoid
 
-    def evaluate_non_stock_part(self, date: datetime, snp500_pe: float) -> float:
+    def evaluate_non_stock_part_old_ver(self, date: datetime, snp500_pe: float) -> float:
         """
         Evaluate the non-stock part based on the date and snp500_pe value.
         """
@@ -157,28 +163,213 @@ class HysteresisLoop:
                 return self.sigmoid(**other_sigmoid_x)
             else:
                 return non_stock_part
-        else: #TODO handle other 2 cases
-            current_sigmoid = self.falling_sigmoid
+        elif slope < 0 and snp500_pe < pes[idx]:
+            current_sigmoid = asdict(self.falling_sigmoid)
+            current_sigmoid["x"] = snp500_pe
+            return self.sigmoid(**current_sigmoid)
+        elif slope < 0 and snp500_pe > pes[idx]:
+            current_sigmoid = asdict(self.falling_sigmoid)
+            current_sigmoid["x"] = pes[idx]
+            non_stock_part = self.sigmoid(**current_sigmoid)
+            other_sigmoid_y = asdict(self.rising_sigmoid)
+            other_sigmoid_y["y"] = non_stock_part
+            pe_to_change_to_other_sigmoid = self.sigmoid_reverse(**other_sigmoid_y)
+            # move to another sigmoid
+            if pe_to_change_to_other_sigmoid < snp500_pe:
+                other_sigmoid_x = asdict(self.rising_sigmoid)
+                other_sigmoid_x["x"] = snp500_pe
+                return self.sigmoid(**other_sigmoid_x)
+            else:
+                return non_stock_part
+        else:
+            raise ValueError("Slope is 0, no change in PE ratio.")
+
+    def init_sigmoid(self, data: list[Tuple[datetime, float]]):
+        """
+        Determine sigmoid from data
+        """
+
+        # month_begin = datetime(date.year, date.month, 1)
+        dates = [entry[0] for entry in data]
+        pes = [entry[1] for entry in data]
+
+        slope, intercept = np.polyfit(np.arange(len(dates)), np.array(pes), 1)
+
+        self._last_pe_ratio = pes[-1]
+
+        # case: pe ratio is rising for whole period
+        if slope > 0:
+            self.current_sigmoid = "rising"
+            self.other_sigmoid = "falling"
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = pes[-1]
+            self._max_level = self.sigmoid(**current_sigmoid)
+        elif slope < 0:
+            self.current_sigmoid = "falling"
+            self.other_sigmoid = "rising"
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = pes[-1]
+            self._min_level = self.sigmoid(**current_sigmoid)
+        else:
+            raise RuntimeError("Cannot determine slope, slope is 0.")
+
+    def _switch_sigmoids(self, current_pe_ratio: float):
+        if self.current_sigmoid == "rising":
+            self.current_sigmoid = "falling"
+            self.other_sigmoid = "rising"
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = current_pe_ratio
+            self._min_level = self.sigmoid(**current_sigmoid)
+            self._max_level = 0
+            self._last_pe_ratio = current_pe_ratio
+        else:
+            self.current_sigmoid = "rising"
+            self.other_sigmoid = "falling"
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = current_pe_ratio
+            self._max_level = self.sigmoid(**current_sigmoid)
+            self._min_level = 0
+            self._last_pe_ratio = current_pe_ratio
+
+    # def determine_sigmoid(self, data: list[Tuple[datetime, float]]):
+    #
+    #     #TODO: to jest żle, trzeba wprowadzic historie, gdzie byl poziom min/max, bo inaczej cofam poziom w kazdym
+    #     # kroku sprawdzenia
+    #
+    #     # dates = [entry[0] for entry in data]
+    #     pes = [entry[1] for entry in data]
+    #     snp500_pe = pes.pop(-1)
+    #
+    #     # slope, intercept = np.polyfit(np.arange(len(pes)), np.array(pes), 1)
+    #
+    #     if snp500_pe > pes[-1] and self.current_sigmoid == "rising":
+    #         return
+    #     elif snp500_pe < pes[-1] and self.current_sigmoid == "falling":
+    #         return
+    #     # case: pe ratio was rising in previous periods, but now it is falling.
+    #     elif snp500_pe < pes[-1] and self.current_sigmoid == "rising":
+    #         current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+    #         current_sigmoid["x"] = pes[-1]
+    #         non_stock_part = self.sigmoid(**current_sigmoid)
+    #         other_sigmoid_y = asdict(self.sigmoids[self.other_sigmoid])
+    #         other_sigmoid_y["y"] = non_stock_part
+    #         pe_to_change_to_other_sigmoid = self.sigmoid_reverse(**other_sigmoid_y)
+    #         # move to another sigmoid
+    #         if pe_to_change_to_other_sigmoid > snp500_pe:
+    #             self._switch_sigmoids()
+    #             return
+    #         else:
+    #             return
+    #     # case: pe ratio was falling in previous periods, but now it is rising.
+    #     elif snp500_pe > pes[-1] and self.current_sigmoid == "falling":
+    #         current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+    #         current_sigmoid["x"] = pes[-1]
+    #         non_stock_part = self.sigmoid(**current_sigmoid)
+    #         other_sigmoid_y = asdict(self.sigmoids[self.other_sigmoid])
+    #         other_sigmoid_y["y"] = non_stock_part
+    #         pe_to_change_to_other_sigmoid = self.sigmoid_reverse(**other_sigmoid_y)
+    #         # move to another sigmoid
+    #         if pe_to_change_to_other_sigmoid < snp500_pe:
+    #             self._switch_sigmoids()
+    #             return
+    #         else:
+    #             return
+    #     else:
+    #         raise RuntimeError("Sth went completely wrong")
+
+    def get_non_stock_part(self, data: Tuple[datetime, float]):
+
+        date = data[0]
+        snp500_pe = data[1]
+
+        # TODO: to jest zle zastanowic sie kiedy nalezy robic update last pe vs min/max level, bo to cos mi sie nie
+        #  zgadza
+
+        if snp500_pe > self._last_pe_ratio and self.current_sigmoid == "rising":
+            self._last_pe_ratio = snp500_pe
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = snp500_pe
+            self._max_level = self.sigmoid(**current_sigmoid)
+            return
+        elif snp500_pe < self._last_pe_ratio and self.current_sigmoid == "falling":
+            self._last_pe_ratio = snp500_pe
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = snp500_pe
+            self._min_level = self.sigmoid(**current_sigmoid)
+            return
+        # case: pe ratio was rising in previous periods, but now it is falling.
+        elif snp500_pe < self._last_pe_ratio and self.current_sigmoid == "rising":
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = self._last_pe_ratio
+            non_stock_part = self.sigmoid(**current_sigmoid)
+            other_sigmoid_y = asdict(self.sigmoids[self.other_sigmoid])
+            other_sigmoid_y["y"] = non_stock_part
+            pe_to_change_to_other_sigmoid = self.sigmoid_reverse(**other_sigmoid_y)
+            # move to another sigmoid
+            if pe_to_change_to_other_sigmoid > snp500_pe:
+                self._switch_sigmoids(snp500_pe)
+                return
+            else:
+                return
+        # case: pe ratio was falling in previous periods, but now it is rising.
+        elif snp500_pe > self._last_pe_ratio and self.current_sigmoid == "falling":
+            current_sigmoid = asdict(self.sigmoids[self.current_sigmoid])
+            current_sigmoid["x"] = self._last_pe_ratio
+            non_stock_part = self.sigmoid(**current_sigmoid)
+            other_sigmoid_y = asdict(self.sigmoids[self.other_sigmoid])
+            other_sigmoid_y["y"] = non_stock_part
+            pe_to_change_to_other_sigmoid = self.sigmoid_reverse(**other_sigmoid_y)
+            # move to another sigmoid
+            if pe_to_change_to_other_sigmoid < snp500_pe:
+                self._switch_sigmoids(snp500_pe)
+                return
+            else:
+                return
+        else:
+            raise RuntimeError("Sth went completely wrong")
+
+    def calculate(self, date: datetime, snp500_pe: float, init_sigmoid: bool = False) -> float:
+        # TODO: HERE LAST WORK - use it
+
+        """
+        Evaluate the non-stock part based on the date and snp500_pe value.
+        """
+
+        # month_begin = datetime(date.year, date.month, 1)
+        # dates = [entry[0] for entry in self._historical_data]
+        # pes = [entry[1] for entry in self._historical_data]
+
+        # idx = dates.index(month_begin)
+        # if month_begin == date:
+        #     idx = idx - 1
+
+        if init_sigmoid:
+            self.init_sigmoid(self._historical_data[:self.slope_estim_dates_num])
+
+        for entry in self._historical_data[self.slope_estim_dates_num:]:
+            self.get_non_stock_part(entry) # <- here decide if only determine sigmoid or also calculate non stock
+            # part (work inside)
+
+
+        indexes = list(range(idx - self.slope_estim_dates_num, idx + 1))
+        slope, intercept = np.polyfit(np.arange(len(indexes)), np.array(pes)[indexes], 1)
+
+        # case: pe ratio is rising for whole period
 
 
 
-        return 1
 
-def fetch_website_text(url: str) -> Optional[str]:
+    def evaluate_historical_data(self, start_date: datetime = None):
+        if not self._historical_data:
+            raise ValueError("Historical data is not set.")
 
-    try:
-        # Send a GET request to the URL
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors
+        if start_date is not None:
+            selected_data = [entry for entry in self._historical_data if entry[0] >= start_date]
+        else:
+            selected_data = self._historical_data
 
-        # Parse the HTML content using BeautifulSoup
-        soup = BeautifulSoup(response.text, 'html.parser')
+        for date, snp500_pe in selected_data:
 
-        # Extract and return the text content
-        return soup.get_text()
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
-        return None
 
 def extract_single_pe_ratio(text: str) -> Tuple[str, datetime]:
     # Regex to extract the number (P/E Ratio)
@@ -298,27 +489,12 @@ if __name__ == "__main__":
     check_values_x = np.arange(10, 41, 2.5)
     hysteresis_loop.check_values(check_values_x)
 
-    # test for sigmoid, reverse
-    # rise_base = asdict(hysteresis_loop.rising_sigmoid)
-    # x_dict = {"x": check_values_x}
-    # from copy import deepcopy
-    #
-    # rise = deepcopy(rise_base)
-    # rise2 = deepcopy(rise_base)
-    # rise.update(x_dict)
-    #
-    #
-    # y_rise = hysteresis_loop.sigmoid(**rise)
-    # rise2.update({"y": y_rise})
-    #
-    # for x_, y_, x_rev in zip(check_values_x, y_rise, hysteresis_loop.sigmoid_reverse(**rise2)):
-    #     print(x_, y_, x_rev )
-
-    # hysteresis_loop.plot(x)
 
 
+    hysteresis_loop.plot(x)
 
     hysteresis_loop.historical_data = extracted
+    non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2025, 5, 15), 28.2)
     non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 25)
     non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 23)
     non_stock_part = hysteresis_loop.evaluate_non_stock_part(datetime(2023, 10, 1), 16)
@@ -335,3 +511,20 @@ if __name__ == "__main__":
     # y_fall = sigmoid(x, min_val, max_val, k, x0_fall)
 
 
+
+
+    # test for sigmoid, reverse
+    # rise_base = asdict(hysteresis_loop.rising_sigmoid)
+    # x_dict = {"x": check_values_x}
+    # from copy import deepcopy
+    #
+    # rise = deepcopy(rise_base)
+    # rise2 = deepcopy(rise_base)
+    # rise.update(x_dict)
+    #
+    #
+    # y_rise = hysteresis_loop.sigmoid(**rise)
+    # rise2.update({"y": y_rise})
+    #
+    # for x_, y_, x_rev in zip(check_values_x, y_rise, hysteresis_loop.sigmoid_reverse(**rise2)):
+    #     print(x_, y_, x_rev )
