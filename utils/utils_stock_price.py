@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 
-from utils_data import change_column_names
+from utils.utils_data import change_column_names
 
 STOCK_PRICES= os.path.join("data", "stock_prices")
 
