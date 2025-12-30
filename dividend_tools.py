@@ -614,10 +614,8 @@ def load_financial_table(data: list) -> pd.DataFrame:
     df = df.replace('', np.nan).dropna(axis=1, how='all')
     # df = df.replace(np.nan, "")
     df.index.name = "Okres"
+    df.reset_index(inplace=True, drop=False)
+    year_quarter = pd.DataFrame(df["Okres"].apply(lambda x: x.split("/")).tolist(), columns=["Rok", "Kwartał"])
+    df = pd.concat([year_quarter, df], axis=1)
+    return df
 
-    #TODO split Okres into Year and Quarter
-    return df.reset_index()
-
-# Example usage:
-# df = load_financial_table("financial_data_br.json")
-# print(df.head())
