@@ -1,12 +1,12 @@
 import argparse
 
-from dividend_tools import get_data_of_single_company, save_companies_data, get_companies_results, save_div_plots
+from dividends.dividend_tools import get_data_of_single_company, save_companies_data, get_companies_results, save_div_plots
 
 def main(company: str):
     # comp = "asbis"
     df = get_data_of_single_company(get_company_url(company), ignore_save_errors=True)
     save_companies_data(df, company, ignore_save_errors=True)
-    #
+
     get_companies_results(company, save_results=True)
 
     save_div_plots(company)
