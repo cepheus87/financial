@@ -1,7 +1,10 @@
 import argparse
 import os.path
 
-from dividends.dividend_tools import get_financial_quarter_data_br, get_financial_gain_loss_table
+from financial.gain_loss_tools import (get_financial_quarter_data_br, get_financial_gain_loss_table,
+                                       save_financial_gl_plots)
+
+from utils.utils_data import process_financial_gain_loss_df
 
 def main(company: str):
     comp = "asbisc"
@@ -18,7 +21,12 @@ def main(company: str):
             import pickle
             pickle.dump(financial_data, f)
 
+
+
     df_financial = get_financial_gain_loss_table(financial_data)
+    df_financial = process_financial_gain_loss_df(df_financial)
+
+    save_financial_gl_plots(company, df_financial)
     #TODO: data analysis and drawing
 
 

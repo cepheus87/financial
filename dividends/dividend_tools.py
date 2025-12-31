@@ -11,15 +11,7 @@ import re
 
 from utils.html_utils import fetch_website_text
 from utils.utils_data import change_column_names
-
-from utils.get_headers_stockwatch_financials import extract_header_names as extract_headers
-from utils.get_headers_stockwatch_financials import sample_text as sample_financial_text
-
-BASE_PATH = str(Path(os.path.abspath(__file__)).parents[1])
-BASE_DATA_PATH = os.path.join(BASE_PATH, "data")
-BASE_COMPANIES_PATH = os.path.join(BASE_DATA_PATH, "companies")
-ISIN_PATH = os.path.join(BASE_DATA_PATH, "isin.json")
-BASE_COMPANIES_RESULTS_PATH = os.path.join(BASE_DATA_PATH, "results")
+from utils.setup import ProjectConfig
 
 YEARS_RANGE = 15
 
@@ -119,11 +111,11 @@ def save_companies_data(df: pd.DataFrame, company_name: str, ignore_save_errors:
     :param company_name: Name of the company
     :param ignore_save_errors: If True, ignores errors when saving the data
     """
-    save_path = Path(BASE_COMPANIES_PATH) / f"{company_name}.csv"
+    save_path = Path(ProjectConfig.base_companies_path) / f"{company_name}.csv"
     if save_path.exists() and not ignore_save_errors:
         raise RuntimeError(f"Data for {company_name} already exists in {save_path}")
 
-    os.makedirs(BASE_COMPANIES_PATH, exist_ok=True)
+    os.makedirs(ProjectConfig.base_companies_path, exist_ok=True)
     df.to_csv(save_path, index=False)
     print(f"Saved data for {company_name} to {save_path}")
 
@@ -192,8 +184,8 @@ def get_companies_results(company_name: str, save_results: bool=False) -> pd.Dat
     df = df[1:]  # Remove the first row which is now the header
 
     if save_results:
-        os.makedirs(BASE_COMPANIES_RESULTS_PATH, exist_ok=True)
-        save_path = Path(BASE_COMPANIES_RESULTS_PATH) / f"{company_name}.csv"
+        os.makedirs(ProjectConfig.base_companies_results_path, exist_ok=True)
+        save_path = Path(ProjectConfig.base_companies_results_path) / f"{company_name}.csv"
         df.to_csv(save_path, index=False)
         print(f"Saved data to {save_path}")
 
@@ -202,30 +194,30 @@ def get_companies_results(company_name: str, save_results: bool=False) -> pd.Dat
 
 def get_isin_of_company(company_name: str) -> str:
 
-    path = Path(ISIN_PATH)
+    path = Path(ProjectConfig.isin_path)
     with open(path, "r") as file:
         isin_data = json.load(file)
 
     isin = isin_data.get(company_name, None)
     if not isin:
-        raise ValueError(f"ISIN for {company_name} not found in {ISIN_PATH}")
+        raise ValueError(f"ISIN for {company_name} not found in {ProjectConfig.isin_path}")
     return isin
 
 # plotting functions
 
 def save_div_plots(company_name: str):
     def check_results(company: str) -> bool:
-        return os.path.exists(os.path.join(BASE_COMPANIES_RESULTS_PATH, company))
+        return os.path.exists(os.path.join(ProjectConfig.base_companies_results_path, company))
 
-    output = os.path.join(BASE_DATA_PATH, "plots")
+    output = os.path.join(ProjectConfig.base_data_path, "plots")
     os.makedirs(output, exist_ok=True)
 
     comp_file = f"{company_name}.csv"
-    company_path = Path(BASE_COMPANIES_PATH) / comp_file
+    company_path = Path(ProjectConfig.base_companies_path) / comp_file
     df_div = prepare_div_df(company_path)
 
 
-    company_path = Path(BASE_COMPANIES_RESULTS_PATH) / comp_file
+    company_path = Path(ProjectConfig.base_companies_results_path) / comp_file
     df_res = prepare_results_df(company_path)
 
     if check_results(comp_file):
@@ -377,136 +369,4 @@ def prepare_div_results_plots(df_div: pd.DataFrame, df_results: pd.DataFrame, ou
     plt.close()
     # plt.show()
 
-def get_financial_quarter_data_br(company_name: str) -> list:
-    br_url = f"https://www.biznesradar.pl/raporty-finansowe-rachunek-zyskow-i-strat/{company_name.upper()},Q"
-
-    txt = fetch_website_text(br_url)
-
-    if not txt:
-        raise RuntimeError(f"Failed to fetch data from {br_url}")
-
-    rows = txt.split("\n\n\n\n\n")
-    data = []
-
-    for row in rows:
-        # Split each row into columns
-        columns = row.split("\n")
-        # Clean and filter empty strings
-        columns = [col.strip() for col in columns if col.strip()]
-        if columns:
-            data.append(columns)
-
-    return data
-
-
-def get_financial_gain_loss_table(data: list) -> pd.DataFrame:
-    #TODO add some checks if data format is not changed on the website
-
-    header_row, value_rows_raw = data[9], data[10]
-
-    value_rows = []
-    for row in value_rows_raw:
-        if row.startswith("EBITDA"):
-            value_rows.append(row)
-            break
-        else:
-            value_rows.append(row)
-
-    # Keep only the "YYYY/Qx" tokens, drop bracketed month tags
-    periods = [h for h in header_row if not h.startswith("(")]
-
-    def div_to_float(val: str) -> list:
-
-        formatted_val = []
-
-        if isinstance(val, str):
-            val = val.replace(",", ".")
-            vals = val.split(" ")
-
-            val_joined = ""
-            for i, v in enumerate(vals):
-                if len(v) > 3:
-                    val_joined += v[:3]
-                    formatted_val.append(val_joined)
-                    val_joined = v[3:]
-                elif i == len(vals) - 1:
-                    val_joined += v
-                    formatted_val.append(val_joined)
-                else:
-                    val_joined += v
-
-        return formatted_val
-
-    def parse_row(row_text: str):
-        # split into name + remainder (first digit starts data)
-        m = re.match(r"([^\d]+)(.*)", row_text.strip())
-        if not m:
-            return None, [], [], []
-        name, tail = m.group(1).strip(), m.group(2).strip()
-
-        vals, dyn_kk, dyn_rr = [], [], []
-        idx = 0
-
-        if name == "Data publikacji":
-            for i in range(len(periods)):
-                vals.append(tail[i*10:i*10+10])
-        elif len(tail) == len(periods):
-            for val in tail:
-                vals.append(val)
-        else:
-
-            while idx < len(tail):
-                # value
-                val_m = re.match(r"\s*(-?[\d\s]+)", tail[idx:])
-                if not val_m:
-                    break
-                val = val_m.group(1).strip()
-                if idx == 0:
-                    vals.extend(div_to_float(val))
-                else:
-                    vals.append(val.replace(" ", ""))
-                # vals.append(val.replace(" ", ""))
-                idx += val_m.end()
-
-                # subsequent k/k or r/r blocks (order may vary)
-                while True:
-                    kk_m = re.match(r"\s*k/k\s+([+-]?\d+(?:\.\d+)?%)~branża\s+[+-]?\d+(?:\.\d+)?%", tail[idx:])
-                    rr_m = re.match(r"\s*r/r\s+([+-]?\d+(?:\.\d+)?%)~branża\s+[+-]?\d+(?:\.\d+)?%", tail[idx:])
-                    if kk_m:
-                        dyn_kk.append(kk_m.group(1))
-                        idx += kk_m.end()
-                        continue
-                    if rr_m:
-                        dyn_rr.append(rr_m.group(1))
-                        idx += rr_m.end()
-                        continue
-                    break
-
-        # pad/truncate to period count; apply missing cells rules
-        n = len(periods)
-        vals = (vals + [""] * n)[:n]
-
-        dyn_kk = ([""] + dyn_kk + [""] * n)[:n]       # no k/k for first column
-        dyn_rr = ([""] * 4 + dyn_rr + [""] * n)[:n]   # no r/r for first four columns
-
-        return name, vals, dyn_kk, dyn_rr
-
-    table = {}
-    for row in value_rows:
-        name, vals, dyn_kk, dyn_rr = parse_row(row)
-        if not name:
-            continue
-        table[name] = vals
-        # attach dynamics as separate rows
-        table[f"{name} k/k"] = dyn_kk
-        table[f"{name} r/r"] = dyn_rr
-
-    df = pd.DataFrame(table, index=periods)
-    df = df.replace('', np.nan).dropna(axis=1, how='all')
-    # df = df.replace(np.nan, "")
-    df.index.name = "Okres"
-    df.reset_index(inplace=True, drop=False)
-    year_quarter = pd.DataFrame(df["Okres"].apply(lambda x: x.split("/")).tolist(), columns=["Rok", "Kwartał"])
-    df = pd.concat([year_quarter, df], axis=1)
-    return df
 
