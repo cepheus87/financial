@@ -146,25 +146,33 @@ def get_financial_gain_loss_table(data: list) -> pd.DataFrame:
 
 def save_financial_gl_plots(company: str, df_financial):
 
+    #TODO: work at graphical layout
+
+    rok = "rok"
+    okres = "okres"
+
     df_financial = df_financial.copy()
 
     output = os.path.join(ProjectConfig.base_data_path, "plots")
     os.makedirs(output, exist_ok=True)
 
-    max_year = max(df_financial["Rok"].max(), df_financial["Rok"].max())
-    df_financial = df_financial[df_financial["Rok"] >= max_year - YEARS_RANGE]
+    max_year = max(df_financial[rok].max(), df_financial[rok].max())
+    df_financial = df_financial[df_financial[rok] >= max_year - YEARS_RANGE]
 
 
     plt.figure(figsize=(10, 6))
-    plt.plot(df_financial['Okres'], df_financial['Przychody ze sprzedaży'], label='Przychody ze sprzedaży', marker='o')
-    plt.plot(df_financial['Okres'], df_financial['Zysk operacyjny (EBIT)'], label='Zysk operacyjny (EBIT)', marker='o')
-    plt.plot(df_financial['Okres'], df_financial['Zysk netto'], label='Zysk netto', marker='o')
-    plt.plot(df_financial['Okres'], df_financial['EBITDA'], label='EBITDA', marker='o')
-    plt.title(f'Financial Gain/Loss for {company.lower()}')
-    plt.xlabel('Okres')
-    plt.ylabel('Wartość (k PLN)')
+    plt.plot(df_financial[okres], df_financial['przychody_ze_sprzedazy'], label='Przychody ze sprzedaży', marker='o')
+    plt.plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)', marker='o')
+    plt.plot(df_financial[okres], df_financial['zysk_netto'], label='Zysk netto', marker='o')
+    plt.plot(df_financial[okres], df_financial['ebitda'], label='EBITDA', marker='o')
+    plt.title(f' Przychody/Straty dla {company.lower()}')
+    plt.xlabel(okres)
+    plt.ylabel('Wartosc (k PLN)')
     plt.legend()
+    plt.xticks(rotation=90)
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(os.path.join(output, f'{company}_financial_gain_loss.png'))
+    out_fig_path = os.path.join(output, f'{company}_financial_gain_loss.png')
+    plt.savefig(out_fig_path)
+    print(f"Saved financial gain/loss plot at {out_fig_path}")
     plt.close()
