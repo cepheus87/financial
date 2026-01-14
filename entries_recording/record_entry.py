@@ -1,6 +1,8 @@
 import argparse
 import math
 
+COMMISION_RATE = 0.00516
+
 def get_entry_values(full_cost: float, commission: float, price_in_currency: float, units: float, sell: bool):
 
     """
@@ -35,6 +37,8 @@ def get_entry_values(full_cost: float, commission: float, price_in_currency: flo
     print(f"Currency rate: {currency_rate:.5f}")
     print(f"Commission PLN: {commission_in_PLN:.2f}")
 
+    return currency_rate, commission_in_PLN
+
 def get_commision_value(commission: float, full_cost: float):
     commission_in_PLN = math.ceil(commission * full_cost * 100) / 100
     return commission_in_PLN
@@ -44,7 +48,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-fc", "--full-cost", type=float, required=True, help="Full cost in PLN")
-    parser.add_argument("-c", "--commission", type=float, required=False, default=0.00516, help="Commission in value (PLN) or percentage (decimal)")
+    parser.add_argument("-c", "--commission", type=float, required=False, default=COMMISION_RATE, help="Commission in value (PLN) "
+                                                                                          "or percentage (decimal)")
     parser.add_argument("-pic", "--price-in-currency", type=float, required=True, help="Price of single unit in "
                                                                                       "original "
                                                                                "currency")
