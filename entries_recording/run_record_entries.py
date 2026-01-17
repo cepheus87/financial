@@ -2,10 +2,12 @@ import argparse
 from contextlib import redirect_stdout
 import io
 import pandas as pd
+from typing import Optional
 
 from record_entry import get_entry_values, COMMISION_RATE
 
-DIVIDEND = "dividend"
+DIVIDEND = "div"
+PAYMENT = "pay"
 SELL = "sell"
 
 def run(args: argparse.Namespace):
@@ -22,9 +24,12 @@ def run(args: argparse.Namespace):
 
         sell = True if row["type"].lower() == SELL else False
 
-        if row["type"].lower() == DIVIDEND:
+        if DIVIDEND in row["type"].lower():
             currency_rate = 0.0
-            format_output(currency_rate, row, dividend=True)
+            format_output(currency_rate, row, full_cost_name="dividend")
+        elif PAYMENT in row["type"].lower():
+            currency_rate = 0.0
+            format_output(currency_rate, row, full_cost_name="payment")
         else:
             with redirect_stdout(f):
                 currency_rate, _ = get_entry_values(full_cost, COMMISION_RATE, price_in_currency, units, sell=sell)
@@ -38,23 +43,22 @@ def postprocess_floats(df_org: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].apply(lambda x: float(x.replace(",", ".")) if isinstance(x, str) else x)
     return df
 
-def format_output(currency_rate: float, row: pd.Series, dividend: bool = False):
+def format_output(currency_rate: float, row: pd.Series, full_cost_name: Optional[str] = None):
     comment = ""
     if not pd.isnull(row["comments"]):
         comment = row["comments"]
 
-    full_cost_name = "Full Cost"
-    if dividend:
-        full_cost_name = "Dividend value"
+    if not full_cost_name:
+        full_cost_name = "Full Cost"
 
     msg = (f"Entry: {row['data']} | "
-           f"{row['account'].upper()} | {row['type'].lower()} | Name: {row['name']} | Units: {row['units']} | "
+           f"{row['account'].upper()} | {row['type'].lower()} | Name: {row['name']} | Currency {row['currency']} | Units: {row['units']} | Price in Currency: {row['price_in_currency']} {row['currency']} | "
            f"{full_cost_name}:"
-           f" {row['full_cost']} PLN | Price in Currency:"
-           f" {row['price_in_currency']} {row['currency']} | Currency Rate: {currency_rate:.5f} "
+           f" {row['full_cost']} PLN | | Currency Rate: {currency_rate:.5f} "
            f"| {comment}")
 
     print(msg)
+    print("\n")
 
 if __name__ == "__main__":
 
