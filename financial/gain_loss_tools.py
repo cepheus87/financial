@@ -4,11 +4,10 @@ import os
 import pandas as pd
 import re
 
-from dividends.dividend_tools import YEARS_RANGE
 from utils.html_utils import fetch_website_text
 from utils.setup import ProjectConfig
 
-YEARS_RANGE = 15
+YEARS_RANGE = 10
 
 def get_financial_quarter_data_br(company_name: str) -> list:
     br_url = f"https://www.biznesradar.pl/raporty-finansowe-rachunek-zyskow-i-strat/{company_name.upper()},Q"
@@ -30,7 +29,6 @@ def get_financial_quarter_data_br(company_name: str) -> list:
             data.append(columns)
 
     return data
-
 
 def get_financial_gain_loss_table(data: list) -> pd.DataFrame:
     #TODO add some checks if data format is not changed on the website
@@ -146,7 +144,7 @@ def get_financial_gain_loss_table(data: list) -> pd.DataFrame:
 
 def save_financial_gl_plots(company: str, df_financial):
 
-    #TODO: work at graphical layout
+    #TODO: create yearly version
 
     rok = "rok"
     okres = "okres"
@@ -159,19 +157,95 @@ def save_financial_gl_plots(company: str, df_financial):
     max_year = max(df_financial[rok].max(), df_financial[rok].max())
     df_financial = df_financial[df_financial[rok] >= max_year - YEARS_RANGE]
 
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(df_financial[okres], df_financial['przychody_ze_sprzedazy'], label='Przychody ze sprzedaży', marker='o')
-    plt.plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)', marker='o')
-    plt.plot(df_financial[okres], df_financial['zysk_netto'], label='Zysk netto', marker='o')
-    plt.plot(df_financial[okres], df_financial['ebitda'], label='EBITDA', marker='o')
-    plt.title(f' Przychody/Straty dla {company.lower()}')
-    plt.xlabel(okres)
-    plt.ylabel('Wartosc (k PLN)')
-    plt.legend()
-    plt.xticks(rotation=90)
-    plt.grid(True)
-    plt.tight_layout()
+    # Plot 1: Przychody ze sprzedaży
+    axs[0, 0].plot(df_financial[okres], df_financial['przychody_ze_sprzedazy'], label='Przychody ze sprzedaży',
+                   marker='o', color='tab:blue')
+    ax2_00 = axs[0, 0].twinx()
+    ax2_00.plot(df_financial[okres], df_financial['przychody_ze_sprzedazy_k/k'], label='Przychody ze sprzedaży k/k',
+                marker='o', color='black')
+    axs[0, 0].set_title('Przychody ze sprzedaży')
+    axs[0, 0].set_xlabel(okres)
+    axs[0, 0].set_ylabel('Wartosc (k PLN)')
+    ax2_00.set_ylabel('Przychody ze sprzedaży k/k', color='black')
+    axs[0, 0].tick_params(axis='x', rotation=90)
+    axs[0, 0].grid(True)
+
+    # Plot 2: Zysk operacyjny (EBIT)
+    axs[0, 1].plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)',
+                   marker='o', color='tab:orange')
+    ax2_01 = axs[0, 1].twinx()
+    ax2_01.plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)_k/k'], label='Zysk operacyjny (EBIT) k/k',
+                marker='o', color='black')
+    axs[0, 1].set_title('Zysk operacyjny (EBIT)')
+    axs[0, 1].set_xlabel(okres)
+    axs[0, 1].set_ylabel('Wartosc (k PLN)')
+    ax2_01.set_ylabel('Zysk operacyjny (EBIT) k/k', color='black')
+    axs[0, 1].tick_params(axis='x', rotation=90)
+    axs[0, 1].grid(True)
+
+    # Plot 3: Zysk netto
+    axs[1, 0].plot(df_financial[okres], df_financial['zysk_netto'], label='Zysk netto', marker='o', color='tab:green')
+    ax2_10 = axs[1, 0].twinx()
+    ax2_10.plot(df_financial[okres], df_financial['zysk_netto_k/k'], label='Zysk netto k/k', marker='o', color='black')
+    axs[1, 0].set_title('Zysk netto')
+    axs[1, 0].set_xlabel(okres)
+    axs[1, 0].set_ylabel('Wartosc (k PLN)')
+    ax2_10.set_ylabel('Zysk netto k/k', color='black')
+    axs[1, 0].tick_params(axis='x', rotation=90)
+    axs[1, 0].grid(True)
+
+    # Plot 4: EBITDA
+    axs[1, 1].plot(df_financial[okres], df_financial['ebitda'], label='EBITDA', marker='o', color='tab:red')
+    ax2_11 = axs[1, 1].twinx()
+    ax2_11.plot(df_financial[okres], df_financial['ebitda_k/k'], label='EBITDA k/k', marker='o', color='black')
+    axs[1, 1].set_title('EBITDA')
+    axs[1, 1].set_xlabel(okres)
+    axs[1, 1].set_ylabel('Wartosc (k PLN)')
+    ax2_11.set_ylabel('EBITDA k/k', color='black')
+    axs[1, 1].tick_params(axis='x', rotation=90)
+    axs[1, 1].grid(True)
+
+    # version without k/k plots
+
+    # # Plot 1: Przychody ze sprzedaży
+    # axs[0, 0].plot(df_financial[okres], df_financial['przychody_ze_sprzedazy'], label='Przychody ze sprzedaży',
+    #                marker='o', color='tab:blue')
+    # axs[0, 0].set_title('Przychody ze sprzedaży')
+    # axs[0, 0].set_xlabel(okres)
+    # axs[0, 0].set_ylabel('Wartosc (k PLN)')
+    # axs[0, 0].tick_params(axis='x', rotation=90)
+    # axs[0, 0].grid(True)
+    #
+    # # Plot 2: Zysk operacyjny (EBIT)
+    # axs[0, 1].plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)',
+    #                marker='o', color='tab:orange')
+    # axs[0, 1].set_title('Zysk operacyjny (EBIT)')
+    # axs[0, 1].set_xlabel(okres)
+    # axs[0, 1].set_ylabel('Wartosc (k PLN)')
+    # axs[0, 1].tick_params(axis='x', rotation=90)
+    # axs[0, 1].grid(True)
+    #
+    # # Plot 3: Zysk netto
+    # axs[1, 0].plot(df_financial[okres], df_financial['zysk_netto'], label='Zysk netto', marker='o', color='tab:green')
+    # axs[1, 0].set_title('Zysk netto')
+    # axs[1, 0].set_xlabel(okres)
+    # axs[1, 0].set_ylabel('Wartosc (k PLN)')
+    # axs[1, 0].tick_params(axis='x', rotation=90)
+    # axs[1, 0].grid(True)
+    #
+    # # Plot 4: EBITDA
+    # axs[1, 1].plot(df_financial[okres], df_financial['ebitda'], label='EBITDA', marker='o', color='tab:red')
+    # axs[1, 1].set_title('EBITDA')
+    # axs[1, 1].set_xlabel(okres)
+    # axs[1, 1].set_ylabel('Wartosc (k PLN)')
+    # axs[1, 1].tick_params(axis='x', rotation=90)
+    # axs[1, 1].grid(True)
+
+    fig.suptitle(f'Przychody/Straty dla {company.lower()}', fontsize=16)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
     out_fig_path = os.path.join(output, f'{company}_financial_gain_loss.png')
     plt.savefig(out_fig_path)
     print(f"Saved financial gain/loss plot at {out_fig_path}")
