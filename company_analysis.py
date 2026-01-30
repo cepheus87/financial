@@ -40,9 +40,10 @@ def main(company: str):
         asset_value_ind_data = get_assets_value_indicators_br(comp)
         with open("asset_value_ind_data_br.pkl", "wb") as f:
             import pickle
-            pickle.dump(financial_data, f)
+            pickle.dump(asset_value_ind_data, f)
 
     #TODO: prepare flow to generate asset value indicators df
+
     df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
 
 if __name__ == "__main__":

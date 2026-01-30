@@ -8,6 +8,16 @@ from utils.html_utils import fetch_website_text
 from utils.setup import ProjectConfig
 from financial.gain_loss_tools import YEARS_RANGE
 
+# Patterns for packed value rows
+_VALUE_RE = re.compile(r"\s*(-?[\d\s]*(?:,\d+)?)")
+_FIRST_VALUE_RE = re.compile(r"\s*(-?[\d\s]*(?:,\d{2})?)")
+_DYN_RE = re.compile(r"\s*(k/k|r/r)\s+([+-]?\d+(?:\.\d+)?%)")
+_BRANZA_RE = re.compile(r"\s*~branża\s+[+-]?\d+(?:\.\d+)?%")
+
+COLS_TO_SAVE = ["Kurs", "Liczba akcji", "Wartość księgowa na akcję", "Wartość księgowa Grahama na akcję",
+                "Przychody ze sprzedaży na akcję", "Zysk na akcję", "Zysk operacyjny na akcję"]
+
+
 def get_assets_value_indicators_br(company_name: str) -> list:
     br_url = f"https://www.biznesradar.pl/wskazniki-wartosci-rynkowej/{company_name.upper()}"
 
@@ -32,11 +42,16 @@ def get_assets_value_indicators_br(company_name: str) -> list:
 def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
     #TODO add some checks if data format is not changed on the website
 
-    header_row, value_rows_raw = data[9], data[10]
+    #TODO POPRAWIC WCZYTYWANIE NIEKTORYCH WARTOŚCI - przypadki brzegowe obsluzyc
+
+    header_row, value_rows_raw = data[7], data[8]
+
+    # with open("wskazniki_debug.txt", "w", encoding="utf-8") as f:
+    #     f.write(str(value_rows_raw))
 
     value_rows = []
     for row in value_rows_raw:
-        if row.startswith("EBITDA"):
+        if row.startswith("EV / EBITDA"):
             value_rows.append(row)
             break
         else:
@@ -45,7 +60,7 @@ def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
     # Keep only the "YYYY/Qx" tokens, drop bracketed month tags
     periods = [h for h in header_row if not h.startswith("(")]
 
-    def div_to_float(val: str) -> list:
+    def _div_to_float(val: str) -> list:
 
         formatted_val = []
 
@@ -67,75 +82,110 @@ def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
 
         return formatted_val
 
-    def parse_row(row_text: str):
+    def _div_to_prices(val: str) -> list:
+
+        prices = []
+        float_shift = 3
+
+        if isinstance(val, str):
+            val = val.replace(",", ".")
+            dot_indexes = [i for i, c in enumerate(val) if c == "."]
+
+            prices.append(val[:dot_indexes[0]+float_shift])
+            for i, idx in enumerate(dot_indexes[:-1]):
+                prices.append(val[idx+float_shift:dot_indexes[i+1]+float_shift])
+
+            return prices
+        else:
+            raise RuntimeError("Value for prices is not string")
+
+    def _parse_row(row_text: str, periods_count: int):
         # split into name + remainder (first digit starts data)
-        m = re.match(r"([^\d]+)(.*)", row_text.strip())
+        m = re.match(r"([^\d+-]+)(.*)", row_text.strip())
         if not m:
             return None, [], [], []
         name, tail = m.group(1).strip(), m.group(2).strip()
 
-        vals, dyn_kk, dyn_rr = [], [], []
+        values, dyn_kk, dyn_rr = [], [], []
         idx = 0
 
-        if name == "Data publikacji":
-            for i in range(len(periods)):
-                vals.append(tail[i*10:i*10+10])
-        elif len(tail) == len(periods):
-            for val in tail:
-                vals.append(val)
+        if name == "Kurs":
+            prices = _div_to_prices(tail)
+            values.extend(prices)
+        elif name == "Liczba akcji":
+            shares_num = _div_to_float(tail)
+            values.extend(shares_num)
         else:
-
-            while idx < len(tail):
-                # value
-                val_m = re.match(r"\s*(-?[\d\s]+)", tail[idx:])
-                if not val_m:
-                    break
-                val = val_m.group(1).strip()
-                if idx == 0:
-                    vals.extend(div_to_float(val))
+            while idx < len(tail) and len(values) < periods_count:
+                if idx ==0:
+                    v_match = _FIRST_VALUE_RE.match(tail, idx)
                 else:
-                    vals.append(val.replace(" ", ""))
-                # vals.append(val.replace(" ", ""))
-                idx += val_m.end()
-
-                # subsequent k/k or r/r blocks (order may vary)
-                while True:
-                    kk_m = re.match(r"\s*k/k\s+([+-]?\d+(?:\.\d+)?%)~branża\s+[+-]?\d+(?:\.\d+)?%", tail[idx:])
-                    rr_m = re.match(r"\s*r/r\s+([+-]?\d+(?:\.\d+)?%)~branża\s+[+-]?\d+(?:\.\d+)?%", tail[idx:])
-                    if kk_m:
-                        dyn_kk.append(kk_m.group(1))
-                        idx += kk_m.end()
-                        continue
-                    if rr_m:
-                        dyn_rr.append(rr_m.group(1))
-                        idx += rr_m.end()
-                        continue
+                    v_match = _VALUE_RE.match(tail, idx)
+                if not v_match or not v_match.group(1):
                     break
+                raw_val = v_match.group(1)
+                clean_val = raw_val.replace(" ", "").replace(",", ".")
+                values.append(clean_val)
+                idx = v_match.end()
 
-        # pad/truncate to period count; apply missing cells rules
-        n = len(periods)
-        vals = (vals + [""] * n)[:n]
+                kk_val, rr_val = "", ""
+                while True:
+                    d_match = _DYN_RE.match(tail, idx)
+                    if not d_match:
+                        break
+                    typ, pct = d_match.groups()
+                    if typ == "k/k":
+                        kk_val = pct
+                    else:
+                        rr_val = pct
+                    idx = d_match.end()
+                    b_match = _BRANZA_RE.match(tail, idx)
+                    if b_match:
+                        idx = b_match.end()
+                dyn_kk.append(kk_val)
+                dyn_rr.append(rr_val)
 
-        dyn_kk = ([""] + dyn_kk + [""] * n)[:n]       # no k/k for first column
-        dyn_rr = ([""] * 4 + dyn_rr + [""] * n)[:n]   # no r/r for first four columns
-
-        return name, vals, dyn_kk, dyn_rr
+        n = periods_count
+        values = (values + [""] * n)[:n]
+        dyn_kk = (dyn_kk + [""] * n)[:n]
+        dyn_rr = (dyn_rr + [""] * n)[:n]
+        return name, values, dyn_kk, dyn_rr
 
     table = {}
+    n = len(periods)
     for row in value_rows:
-        name, vals, dyn_kk, dyn_rr = parse_row(row)
-        if not name:
+        name, vals, dyn_kk, dyn_rr = _parse_row(row, n)
+        if not name or name not in COLS_TO_SAVE:
             continue
         table[name] = vals
-        # attach dynamics as separate rows
         table[f"{name} k/k"] = dyn_kk
         table[f"{name} r/r"] = dyn_rr
 
     df = pd.DataFrame(table, index=periods)
-    df = df.replace('', np.nan).dropna(axis=1, how='all')
-    # df = df.replace(np.nan, "")
+    df = df.replace("", np.nan).dropna(axis=1, how="all")
     df.index.name = "Okres"
     df.reset_index(inplace=True, drop=False)
-    year_quarter = pd.DataFrame(df["Okres"].apply(lambda x: x.split("/")).tolist(), columns=["Rok", "Kwartał"])
-    df = pd.concat([year_quarter, df], axis=1)
+    year_quarter = df["Okres"].apply(lambda x: x.split("/") if isinstance(x, str) else ["", ""]).tolist()
+    df_yq = pd.DataFrame(year_quarter, columns=["Rok", "Kwartał"])
+    df = pd.concat([df_yq, df], axis=1)
     return df
+
+
+    # table = {}
+    # for row in value_rows:
+    #     name, vals, dyn_kk, dyn_rr = parse_row(row)
+    #     if not name:
+    #         continue
+    #     table[name] = vals
+    #     # attach dynamics as separate rows
+    #     table[f"{name} k/k"] = dyn_kk
+    #     table[f"{name} r/r"] = dyn_rr
+    #
+    # df = pd.DataFrame(table, index=periods)
+    # df = df.replace('', np.nan).dropna(axis=1, how='all')
+    # # df = df.replace(np.nan, "")
+    # df.index.name = "Okres"
+    # df.reset_index(inplace=True, drop=False)
+    # year_quarter = pd.DataFrame(df["Okres"].apply(lambda x: x.split("/")).tolist(), columns=["Rok", "Kwartał"])
+    # df = pd.concat([year_quarter, df], axis=1)
+    # return df
