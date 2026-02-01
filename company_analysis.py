@@ -5,6 +5,7 @@ from financial.gain_loss_tools import (get_financial_quarter_data_br, get_financ
                                        save_financial_gl_plots)
 from financial.asset_value_indicators import (get_assets_value_indicators_br,
                                               get_assets_value_indicators_table)
+from financial.profitability_indicators import get_profitability_indicators_br, get_profitability_indicators_table
 
 from utils.utils_data import process_financial_gain_loss_df
 
@@ -42,9 +43,26 @@ def main(company: str):
             import pickle
             pickle.dump(asset_value_ind_data, f)
 
-    #TODO: prepare flow to generate asset value indicators df
+    # TODO:  calculate needed values and generate plots
 
     df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
+
+
+
+    if os.path.exists("profitability_ind_data_br.pkl"):
+        with open("profitability_ind_data_br.pkl", "rb") as f:
+            import pickle
+            profitability_ind_data = pickle.load(f)
+
+    else:
+        profitability_ind_data = get_profitability_indicators_br(comp)
+        with open("profitability_ind_data_br.pkl", "wb") as f:
+            import pickle
+            pickle.dump(profitability_ind_data, f)
+
+    # TODO: prepare flow to generate indicators df
+
+    df_profitability = get_profitability_indicators_table(profitability_ind_data)
 
 if __name__ == "__main__":
 

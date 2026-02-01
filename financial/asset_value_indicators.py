@@ -42,12 +42,7 @@ def get_assets_value_indicators_br(company_name: str) -> list:
 def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
     #TODO add some checks if data format is not changed on the website
 
-    #TODO POPRAWIC WCZYTYWANIE NIEKTORYCH WARTOŚCI - przypadki brzegowe obsluzyc
-
     header_row, value_rows_raw = data[7], data[8]
-
-    # with open("wskazniki_debug.txt", "w", encoding="utf-8") as f:
-    #     f.write(str(value_rows_raw))
 
     value_rows = []
     for row in value_rows_raw:
@@ -169,23 +164,3 @@ def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
     df_yq = pd.DataFrame(year_quarter, columns=["Rok", "Kwartał"])
     df = pd.concat([df_yq, df], axis=1)
     return df
-
-
-    # table = {}
-    # for row in value_rows:
-    #     name, vals, dyn_kk, dyn_rr = parse_row(row)
-    #     if not name:
-    #         continue
-    #     table[name] = vals
-    #     # attach dynamics as separate rows
-    #     table[f"{name} k/k"] = dyn_kk
-    #     table[f"{name} r/r"] = dyn_rr
-    #
-    # df = pd.DataFrame(table, index=periods)
-    # df = df.replace('', np.nan).dropna(axis=1, how='all')
-    # # df = df.replace(np.nan, "")
-    # df.index.name = "Okres"
-    # df.reset_index(inplace=True, drop=False)
-    # year_quarter = pd.DataFrame(df["Okres"].apply(lambda x: x.split("/")).tolist(), columns=["Rok", "Kwartał"])
-    # df = pd.concat([year_quarter, df], axis=1)
-    # return df
