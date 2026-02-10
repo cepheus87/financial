@@ -5,9 +5,10 @@ from financial.gain_loss_tools import (get_financial_quarter_data_br, get_financ
                                        save_financial_gl_plots)
 from financial.asset_value_indicators import (get_assets_value_indicators_br,
                                               get_assets_value_indicators_table)
-from financial.profitability_indicators import get_profitability_indicators_br, get_profitability_indicators_table
+from financial.profitability_indicators import (get_profitability_indicators_br, get_profitability_indicators_table,
+                                                save_profitability_indicators_plots)
 
-from utils.utils_data import process_financial_gain_loss_df
+from utils.utils_data import process_financial_gain_loss_df, process_profitability_indicators_df
 
 def main(company: str):
     comp = "asbisc"
@@ -63,6 +64,9 @@ def main(company: str):
     # TODO: prepare flow to generate indicators df
 
     df_profitability = get_profitability_indicators_table(profitability_ind_data)
+    df_profitability = process_profitability_indicators_df(df_profitability)
+
+    save_profitability_indicators_plots(company, df_profitability)
 
 if __name__ == "__main__":
 

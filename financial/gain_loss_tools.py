@@ -210,7 +210,7 @@ def save_financial_gl_plots(company: str, df_financial):
     # version without k/k plots
 
     # # Plot 1: Przychody ze sprzedaży
-    # axs[0, 0].plot(df_financial[okres], df_financial['przychody_ze_sprzedazy'], label='Przychody ze sprzedaży',
+    # axs[0, 0].plot(df_profitability[okres], df_profitability['przychody_ze_sprzedazy'], label='Przychody ze sprzedaży',
     #                marker='o', color='tab:blue')
     # axs[0, 0].set_title('Przychody ze sprzedaży')
     # axs[0, 0].set_xlabel(okres)
@@ -219,7 +219,7 @@ def save_financial_gl_plots(company: str, df_financial):
     # axs[0, 0].grid(True)
     #
     # # Plot 2: Zysk operacyjny (EBIT)
-    # axs[0, 1].plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)',
+    # axs[0, 1].plot(df_profitability[okres], df_profitability['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)',
     #                marker='o', color='tab:orange')
     # axs[0, 1].set_title('Zysk operacyjny (EBIT)')
     # axs[0, 1].set_xlabel(okres)
@@ -228,7 +228,7 @@ def save_financial_gl_plots(company: str, df_financial):
     # axs[0, 1].grid(True)
     #
     # # Plot 3: Zysk netto
-    # axs[1, 0].plot(df_financial[okres], df_financial['zysk_netto'], label='Zysk netto', marker='o', color='tab:green')
+    # axs[1, 0].plot(df_profitability[okres], df_profitability['zysk_netto'], label='Zysk netto', marker='o', color='tab:green')
     # axs[1, 0].set_title('Zysk netto')
     # axs[1, 0].set_xlabel(okres)
     # axs[1, 0].set_ylabel('Wartosc (k PLN)')
@@ -236,7 +236,7 @@ def save_financial_gl_plots(company: str, df_financial):
     # axs[1, 0].grid(True)
     #
     # # Plot 4: EBITDA
-    # axs[1, 1].plot(df_financial[okres], df_financial['ebitda'], label='EBITDA', marker='o', color='tab:red')
+    # axs[1, 1].plot(df_profitability[okres], df_profitability['ebitda'], label='EBITDA', marker='o', color='tab:red')
     # axs[1, 1].set_title('EBITDA')
     # axs[1, 1].set_xlabel(okres)
     # axs[1, 1].set_ylabel('Wartosc (k PLN)')

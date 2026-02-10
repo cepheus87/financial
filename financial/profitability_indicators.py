@@ -10,12 +10,9 @@ from financial.gain_loss_tools import YEARS_RANGE
 
 # Patterns for packed value rows
 _VALUE_RE = re.compile(r"\s*(-?[\d\s]*(?:,\d{2})?%)")
-# _FIRST_VALUE_RE = re.compile(r"\s*(-?[\d\s]*(?:,\d{2})?%)")
 _DYN_RE = re.compile(r"\s*(k/k|r/r)\s+([+-]?\d+(?:[.,]\d{2})?%)")
 _BRANZA_RE = re.compile(r"\s*~branża\s+([+-]?\d+(?:[.,]\d{2})?%)")
 
-COLS_TO_SAVE = ["Kurs", "Liczba akcji", "Wartość księgowa na akcję", "Wartość księgowa Grahama na akcję",
-                "Przychody ze sprzedaży na akcję", "Zysk na akcję", "Zysk operacyjny na akcję"]
 
 
 def get_profitability_indicators_br(company_name: str) -> list:
@@ -120,8 +117,6 @@ def get_profitability_indicators_table(data: list) -> pd.DataFrame:
     n = len(periods)
     for row in value_rows:
         name, vals, dyn_kk, dyn_rr = _parse_row(row, n)
-        # if not name or name not in COLS_TO_SAVE:
-        #     continue
         table[name] = vals
         table[f"{name} k/k"] = dyn_kk
         table[f"{name} r/r"] = dyn_rr
@@ -135,3 +130,90 @@ def get_profitability_indicators_table(data: list) -> pd.DataFrame:
     df = pd.concat([df_yq, df], axis=1)
     return df
 
+def save_profitability_indicators_plots(company: str, df_profitability):
+
+    #TODO: create yearly version
+
+    rok = "rok"
+    okres = "okres"
+
+    df_profitability = df_profitability.copy()
+
+    output = os.path.join(ProjectConfig.base_data_path, "plots")
+    os.makedirs(output, exist_ok=True)
+
+    max_year = max(df_profitability[rok].max(), df_profitability[rok].max())
+    df_profitability = df_profitability[df_profitability[rok] >= max_year - YEARS_RANGE]
+
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Plot 1:
+    main_name = "ROIC"
+    axs[0, 0].plot(df_profitability[okres], df_profitability['roic'], label=main_name,
+                   marker='o', color='tab:blue')
+    ax2_00 = axs[0, 0].twinx()
+    ax2_00.plot(df_profitability[okres], df_profitability['roic_k/k'], label=f'{main_name} k/k',
+                marker='o', color='black')
+    axs[0, 0].set_title(main_name)
+    axs[0, 0].set_xlabel(okres)
+    axs[0, 0].set_ylabel('Współczynnik')
+    ax2_00.set_ylabel(f'{main_name} k/k', color='black')
+    axs[0, 0].tick_params(axis='x', rotation=90)
+    axs[0, 0].grid(True)
+    axs[0, 0].legend(loc='upper left')
+    ax2_00.legend(loc='upper right')
+
+    # Plot 2:
+    main_name = "ROE"
+    axs[0, 1].plot(df_profitability[okres], df_profitability['roe'], label=main_name,
+                   marker='o', color='tab:orange')
+    ax2_01 = axs[0, 1].twinx()
+    ax2_01.plot(df_profitability[okres], df_profitability['roe_k/k'], label=f'{main_name} k/k',
+                marker='o', color='black')
+    axs[0, 1].set_title(main_name)
+    axs[0, 1].set_xlabel(okres)
+    axs[0, 1].set_ylabel('Współczynnik')
+    ax2_01.set_ylabel(f'{main_name} k/k', color='black')
+    axs[0, 1].tick_params(axis='x', rotation=90)
+    axs[0, 1].grid(True)
+    axs[0, 1].legend(loc='upper left')
+    ax2_01.legend(loc='upper right')
+
+    # Plot 3:
+    main_name = "ROA"
+    axs[1, 0].plot(df_profitability[okres], df_profitability['roa'], label=main_name, marker='o', color='tab:green')
+    ax2_10 = axs[1, 0].twinx()
+    ax2_10.plot(df_profitability[okres], df_profitability['roa_k/k'], label=f'{main_name} k/k', marker='o',
+                color='black')
+    axs[1, 0].set_title(main_name)
+    axs[1, 0].set_xlabel(okres)
+    axs[1, 0].set_ylabel('Współczynnik')
+    ax2_10.set_ylabel(f'{main_name} k/k', color='black')
+    axs[1, 0].tick_params(axis='x', rotation=90)
+    axs[1, 0].grid(True)
+    axs[1, 0].legend(loc='upper left')
+    ax2_10.legend(loc='upper right')
+
+    # Plot 4:
+    main_name = "marża zysku netto"
+    axs[1, 1].plot(df_profitability[okres], df_profitability['marza_zysku_netto'], label=main_name, marker='o',
+                   color='tab:red')
+    ax2_11 = axs[1, 1].twinx()
+    ax2_11.plot(df_profitability[okres], df_profitability['marza_zysku_netto_k/k'], label=f'{main_name} k/k', marker='o',
+                color='black')
+    axs[1, 1].set_title(main_name)
+    axs[1, 1].set_xlabel(okres)
+    axs[1, 1].set_ylabel('Współczynnik')
+    ax2_11.set_ylabel(f'{main_name} k/k', color='black')
+    axs[1, 1].tick_params(axis='x', rotation=90)
+    axs[1, 1].grid(True)
+    axs[1, 1].legend(loc='upper left')
+    ax2_11.legend(loc='upper right')
+
+    fig.suptitle(f'Wskaźniki rentowności dla {company.lower()}', fontsize=16)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    out_fig_path = os.path.join(output, f'{company}_profitability_indicators.png')
+    plt.savefig(out_fig_path)
+    print(f"Saved profitability indicators plot at {out_fig_path}")
+    plt.close()
