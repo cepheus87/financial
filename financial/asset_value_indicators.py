@@ -5,7 +5,7 @@ import pandas as pd
 import re
 
 from utils.html_utils import fetch_website_text
-from utils.setup import ProjectConfig
+from utils.utils_data import get_br_name_mapping
 from financial.gain_loss_tools import YEARS_RANGE
 
 # Patterns for packed value rows
@@ -19,7 +19,9 @@ COLS_TO_SAVE = ["Kurs", "Liczba akcji", "Wartość księgowa na akcję", "Warto�
 
 
 def get_assets_value_indicators_br(company_name: str) -> list:
-    br_url = f"https://www.biznesradar.pl/wskazniki-wartosci-rynkowej/{company_name.upper()}"
+    br_name = get_br_name_mapping(company_name)
+
+    br_url = f"https://www.biznesradar.pl/wskazniki-wartosci-rynkowej/{br_name.upper()}"
 
     txt = fetch_website_text(br_url)
 

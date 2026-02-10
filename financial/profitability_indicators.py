@@ -6,6 +6,7 @@ import re
 
 from utils.html_utils import fetch_website_text
 from utils.setup import ProjectConfig
+from utils.utils_data import get_br_name_mapping
 from financial.gain_loss_tools import YEARS_RANGE
 
 # Patterns for packed value rows
@@ -16,7 +17,8 @@ _BRANZA_RE = re.compile(r"\s*~branża\s+([+-]?\d+(?:[.,]\d{2})?%)")
 
 
 def get_profitability_indicators_br(company_name: str) -> list:
-    br_url = f"https://www.biznesradar.pl/wskazniki-rentownosci/{company_name.upper()}"
+    br_name = get_br_name_mapping(company_name)
+    br_url = f"https://www.biznesradar.pl/wskazniki-rentownosci/{br_name.upper()}"
 
     txt = fetch_website_text(br_url)
 
@@ -53,6 +55,7 @@ def get_profitability_indicators_table(data: list) -> pd.DataFrame:
     periods = [h for h in header_row if not h.startswith("(")]
 
 
+    # TODO: quite similar to parse_percentage() from utils_data
     def _get_percentage(val: str) -> float:
         if isinstance(val, str):
             val = val.replace("%", "").replace(",", ".").strip()

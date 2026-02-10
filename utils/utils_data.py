@@ -1,6 +1,9 @@
+import json
 from typing import List, Optional, Union
 import pandas as pd
 import warnings
+
+from setup import ProjectConfig
 
 polish_to_english = str.maketrans(
     "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
@@ -33,6 +36,14 @@ def parse_percentage(value: str) -> Union[float, str]:
     else:
         return value
 
+def get_br_name_mapping(company: str) -> str:
+    with open(ProjectConfig.br_names_mapping_path, "r") as f:
+        mapping = json.load(f)
+
+    if mapping.get(company):
+        return mapping[company]
+    else:
+        raise ValueError(f"No BR name mapping found for company: {company}")
 
 def process_financial_gain_loss_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -56,3 +67,5 @@ def process_profitability_indicators_df(df: pd.DataFrame) -> pd.DataFrame:
     df["rok"] = df["rok"].astype(int)
 
     return df
+
+

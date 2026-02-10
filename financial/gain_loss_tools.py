@@ -6,11 +6,13 @@ import re
 
 from utils.html_utils import fetch_website_text
 from utils.setup import ProjectConfig
+from utils.utils_data import get_br_name_mapping
 
 YEARS_RANGE = 10
 
 def get_financial_quarter_data_br(company_name: str) -> list:
-    br_url = f"https://www.biznesradar.pl/raporty-finansowe-rachunek-zyskow-i-strat/{company_name.upper()},Q"
+    br_name = get_br_name_mapping(company_name)
+    br_url = f"https://www.biznesradar.pl/raporty-finansowe-rachunek-zyskow-i-strat/{br_name.upper()},Q"
 
     txt = fetch_website_text(br_url)
 
