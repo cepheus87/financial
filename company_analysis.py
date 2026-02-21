@@ -10,20 +10,27 @@ from financial.profitability_indicators import (get_profitability_indicators_br,
 
 from utils.utils_data import process_financial_gain_loss_df, process_profitability_indicators_df
 
-def main(company: str):
-    comp = "asbisc"
-    #TODO: get br specific names mapping
+def main_test(company: str, download: bool):
+    # comp = "asbisc"
+    comp = company
+    #TODO: start saving and loading data files after downloading, make functions for that
 
-    if os.path.exists("financial_data_br.pkl"):
-        with open("financial_data_br.pkl", "rb") as f:
-            import pickle
-            financial_data = pickle.load(f)
-
-    else:
+    if download:
         financial_data = get_financial_quarter_data_br(comp)
         with open("financial_data_br.pkl", "wb") as f:
             import pickle
             pickle.dump(financial_data, f)
+    else:
+        if os.path.exists("financial_data_br.pkl"):
+            with open("financial_data_br.pkl", "rb") as f:
+                import pickle
+                financial_data = pickle.load(f)
+
+        else:
+            financial_data = get_financial_quarter_data_br(comp)
+            with open("financial_data_br.pkl", "wb") as f:
+                import pickle
+                pickle.dump(financial_data, f)
 
 
 
@@ -33,36 +40,67 @@ def main(company: str):
     save_financial_gl_plots(company, df_financial)
     #TODO: data analysis and drawing
 
-    if os.path.exists("asset_value_ind_data_br.pkl"):
-        with open("asset_value_ind_data_br.pkl", "rb") as f:
-            import pickle
-            asset_value_ind_data = pickle.load(f)
-
-    else:
+    if download:
         asset_value_ind_data = get_assets_value_indicators_br(comp)
         with open("asset_value_ind_data_br.pkl", "wb") as f:
             import pickle
             pickle.dump(asset_value_ind_data, f)
+    else:
+        if os.path.exists("asset_value_ind_data_br.pkl"):
+            with open("asset_value_ind_data_br.pkl", "rb") as f:
+                import pickle
+                asset_value_ind_data = pickle.load(f)
+
+        else:
+            asset_value_ind_data = get_assets_value_indicators_br(comp)
+            with open("asset_value_ind_data_br.pkl", "wb") as f:
+                import pickle
+                pickle.dump(asset_value_ind_data, f)
 
     # TODO:  calculate needed values and generate plots
 
     df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
 
 
-
-    if os.path.exists("profitability_ind_data_br.pkl"):
-        with open("profitability_ind_data_br.pkl", "rb") as f:
-            import pickle
-            profitability_ind_data = pickle.load(f)
-
-    else:
+    if download:
         profitability_ind_data = get_profitability_indicators_br(comp)
         with open("profitability_ind_data_br.pkl", "wb") as f:
             import pickle
             pickle.dump(profitability_ind_data, f)
+    else:
+        if os.path.exists("profitability_ind_data_br.pkl"):
+            with open("profitability_ind_data_br.pkl", "rb") as f:
+                import pickle
+                profitability_ind_data = pickle.load(f)
 
-    # TODO: prepare flow to generate indicators df
+        else:
+            profitability_ind_data = get_profitability_indicators_br(comp)
+            with open("profitability_ind_data_br.pkl", "wb") as f:
+                import pickle
+                pickle.dump(profitability_ind_data, f)
 
+    df_profitability = get_profitability_indicators_table(profitability_ind_data)
+    df_profitability = process_profitability_indicators_df(df_profitability)
+
+    save_profitability_indicators_plots(company, df_profitability)
+
+def main(company: str):
+    comp = "asbisc"
+    #TODO: start saving and loading data files after downloading, make functions for that
+
+    financial_data = get_financial_quarter_data_br(company)
+    df_financial = get_financial_gain_loss_table(financial_data)
+    df_financial = process_financial_gain_loss_df(df_financial)
+
+    save_financial_gl_plots(company, df_financial)
+    #TODO: data analysis and drawing
+
+    # TODO:  calculate needed values and generate plots
+
+    asset_value_ind_data = get_assets_value_indicators_br(company)
+    df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
+
+    profitability_ind_data = get_profitability_indicators_br(company)
     df_profitability = get_profitability_indicators_table(profitability_ind_data)
     df_profitability = process_profitability_indicators_df(df_profitability)
 
@@ -72,7 +110,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Analyze dividends of a company.")
     parser.add_argument("-c", "--company", type=str, required=True, help="Company name")
+    parser.add_argument("-t", "--test", action="store_true", help="Run in test mode with sample data")
+    parser.add_argument("-d", "--download", action="store_true", help="Download data from the web (default: False, use cached data if available)")
 
     args = parser.parse_args()
 
-    main(**vars(args))
+    if args.test:
+        print("Running in test mode with sample data...")
+        main_test(args.company, args.download)
+    else:
+        main(args.company)
+

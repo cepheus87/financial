@@ -5,7 +5,7 @@ import pandas as pd
 import re
 
 from utils.html_utils import fetch_website_text
-from utils.utils_data import get_br_name_mapping
+from utils.utils_data import get_br_name_mapping, find_date_element_index
 from financial.gain_loss_tools import YEARS_RANGE
 
 # Patterns for packed value rows
@@ -44,7 +44,11 @@ def get_assets_value_indicators_br(company_name: str) -> list:
 def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
     #TODO add some checks if data format is not changed on the website
 
-    header_row, value_rows_raw = data[7], data[8]
+    date_idx = find_date_element_index(data)
+    if date_idx == -1:
+        raise ValueError("Could not find date element in data")
+
+    header_row, value_rows_raw = data[date_idx], data[date_idx + 1]
 
     value_rows = []
     for row in value_rows_raw:

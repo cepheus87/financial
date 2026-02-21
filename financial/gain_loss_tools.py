@@ -6,7 +6,7 @@ import re
 
 from utils.html_utils import fetch_website_text
 from utils.setup import ProjectConfig
-from utils.utils_data import get_br_name_mapping
+from utils.utils_data import get_br_name_mapping, find_date_element_index
 
 YEARS_RANGE = 10
 
@@ -35,7 +35,11 @@ def get_financial_quarter_data_br(company_name: str) -> list:
 def get_financial_gain_loss_table(data: list) -> pd.DataFrame:
     #TODO add some checks if data format is not changed on the website
 
-    header_row, value_rows_raw = data[9], data[10]
+    date_idx = find_date_element_index(data)
+    if date_idx == -1:
+        raise ValueError("Could not find date element in data")
+
+    header_row, value_rows_raw = data[date_idx], data[date_idx + 1]
 
     value_rows = []
     for row in value_rows_raw:
@@ -173,6 +177,8 @@ def save_financial_gl_plots(company: str, df_financial):
     ax2_00.set_ylabel('Przychody ze sprzedaży k/k', color='black')
     axs[0, 0].tick_params(axis='x', rotation=90)
     axs[0, 0].grid(True)
+    axs[0, 0].legend(loc='upper left')
+    ax2_00.legend(loc='lower left')
 
     # Plot 2: Zysk operacyjny (EBIT)
     axs[0, 1].plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)'], label='Zysk operacyjny (EBIT)',
@@ -186,6 +192,8 @@ def save_financial_gl_plots(company: str, df_financial):
     ax2_01.set_ylabel('Zysk operacyjny (EBIT) k/k', color='black')
     axs[0, 1].tick_params(axis='x', rotation=90)
     axs[0, 1].grid(True)
+    axs[0, 1].legend(loc='upper left')
+    ax2_01.legend(loc='lower left')
 
     # Plot 3: Zysk netto
     axs[1, 0].plot(df_financial[okres], df_financial['zysk_netto'], label='Zysk netto', marker='o', color='tab:green')
@@ -197,6 +205,8 @@ def save_financial_gl_plots(company: str, df_financial):
     ax2_10.set_ylabel('Zysk netto k/k', color='black')
     axs[1, 0].tick_params(axis='x', rotation=90)
     axs[1, 0].grid(True)
+    axs[1, 0].legend(loc='upper left')
+    ax2_10.legend(loc='lower left')
 
     # Plot 4: EBITDA
     axs[1, 1].plot(df_financial[okres], df_financial['ebitda'], label='EBITDA', marker='o', color='tab:red')
@@ -208,6 +218,8 @@ def save_financial_gl_plots(company: str, df_financial):
     ax2_11.set_ylabel('EBITDA k/k', color='black')
     axs[1, 1].tick_params(axis='x', rotation=90)
     axs[1, 1].grid(True)
+    axs[1, 1].legend(loc='upper left')
+    ax2_11.legend(loc='lower left')
 
     # version without k/k plots
 

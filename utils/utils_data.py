@@ -1,9 +1,10 @@
 import json
 from typing import List, Optional, Union
 import pandas as pd
+import re
 import warnings
 
-from setup import ProjectConfig
+from utils.setup import ProjectConfig
 
 polish_to_english = str.maketrans(
     "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
@@ -68,4 +69,9 @@ def process_profitability_indicators_df(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def find_date_element_index(data: list) -> int:
+    for i, item in enumerate(data):
+        if re.match(r"\d{4}/Q\d+", item[0]):
+            return i
 
+    return -1

@@ -6,7 +6,7 @@ import re
 
 from utils.html_utils import fetch_website_text
 from utils.setup import ProjectConfig
-from utils.utils_data import get_br_name_mapping
+from utils.utils_data import get_br_name_mapping, find_date_element_index
 from financial.gain_loss_tools import YEARS_RANGE
 
 # Patterns for packed value rows
@@ -41,7 +41,11 @@ def get_profitability_indicators_br(company_name: str) -> list:
 def get_profitability_indicators_table(data: list) -> pd.DataFrame:
     #TODO add some checks if data format is not changed on the website
 
-    header_row, value_rows_raw = data[9], data[10]
+    date_idx = find_date_element_index(data)
+    if date_idx == -1:
+        raise ValueError("Could not find date element in data")
+
+    header_row, value_rows_raw = data[date_idx], data[date_idx + 1]
 
     value_rows = []
     for row in value_rows_raw:
@@ -164,7 +168,7 @@ def save_profitability_indicators_plots(company: str, df_profitability):
     axs[0, 0].tick_params(axis='x', rotation=90)
     axs[0, 0].grid(True)
     axs[0, 0].legend(loc='upper left')
-    ax2_00.legend(loc='upper right')
+    ax2_00.legend(loc='lower left')
 
     # Plot 2:
     main_name = "ROE"
@@ -180,7 +184,7 @@ def save_profitability_indicators_plots(company: str, df_profitability):
     axs[0, 1].tick_params(axis='x', rotation=90)
     axs[0, 1].grid(True)
     axs[0, 1].legend(loc='upper left')
-    ax2_01.legend(loc='upper right')
+    ax2_01.legend(loc='lower left')
 
     # Plot 3:
     main_name = "ROA"
@@ -195,7 +199,7 @@ def save_profitability_indicators_plots(company: str, df_profitability):
     axs[1, 0].tick_params(axis='x', rotation=90)
     axs[1, 0].grid(True)
     axs[1, 0].legend(loc='upper left')
-    ax2_10.legend(loc='upper right')
+    ax2_10.legend(loc='lower left')
 
     # Plot 4:
     main_name = "marża zysku netto"
@@ -211,7 +215,7 @@ def save_profitability_indicators_plots(company: str, df_profitability):
     axs[1, 1].tick_params(axis='x', rotation=90)
     axs[1, 1].grid(True)
     axs[1, 1].legend(loc='upper left')
-    ax2_11.legend(loc='upper right')
+    ax2_11.legend(loc='lower left')
 
     fig.suptitle(f'Wskaźniki rentowności dla {company.lower()}', fontsize=16)
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
