@@ -61,6 +61,21 @@ def process_financial_gain_loss_df(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def process_assets_value_indicators_df(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    df.columns = change_column_names(df.columns.tolist())
+    kk_rr_columns = [col for col in df.columns if "k/k" in col or "r/r" in col]
+
+    for col in kk_rr_columns:
+        df[col] = df[col].apply(parse_percentage)
+
+    float_cols = [col for col in df.columns[3:] if col not in kk_rr_columns]
+    df[float_cols] = df[float_cols].apply(pd.to_numeric)
+    df["rok"] = df["rok"].astype(int)
+
+    return df
+
 def process_profitability_indicators_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 

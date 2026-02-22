@@ -4,11 +4,12 @@ import os.path
 from financial.gain_loss_tools import (get_financial_quarter_data_br, get_financial_gain_loss_table,
                                        save_financial_gl_plots)
 from financial.asset_value_indicators import (get_assets_value_indicators_br,
-                                              get_assets_value_indicators_table)
+                                              get_assets_value_indicators_table,
+                                              save_assets_value_indicators_plots)
 from financial.profitability_indicators import (get_profitability_indicators_br, get_profitability_indicators_table,
                                                 save_profitability_indicators_plots)
 
-from utils.utils_data import process_financial_gain_loss_df, process_profitability_indicators_df
+from utils.utils_data import process_financial_gain_loss_df, process_profitability_indicators_df, process_assets_value_indicators_df
 
 def main_test(company: str, download: bool):
     # comp = "asbisc"
@@ -57,10 +58,13 @@ def main_test(company: str, download: bool):
                 import pickle
                 pickle.dump(asset_value_ind_data, f)
 
-    # TODO:  calculate needed values and generate plots
-
     df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
+    df_asset_val_ind = process_assets_value_indicators_df(df_asset_val_ind)
 
+    #TODO: use shares_price_num in dividend analysis
+    df_shares_price_num = df_asset_val_ind[df_asset_val_ind.columns[:5]]
+
+    save_assets_value_indicators_plots(company, df_asset_val_ind)
 
     if download:
         profitability_ind_data = get_profitability_indicators_br(comp)
@@ -93,12 +97,16 @@ def main(company: str):
     df_financial = process_financial_gain_loss_df(df_financial)
 
     save_financial_gl_plots(company, df_financial)
-    #TODO: data analysis and drawing
 
-    # TODO:  calculate needed values and generate plots
-
+    # TODO: check if all drawing are done in save_financial_gl_plots
     asset_value_ind_data = get_assets_value_indicators_br(company)
     df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
+    df_asset_val_ind = process_assets_value_indicators_df(df_asset_val_ind)
+
+    #TODO: use shares_price_num in dividend analysis
+    df_shares_price_num = df_asset_val_ind[df_asset_val_ind.columns[:5]]
+
+    save_assets_value_indicators_plots(company, df_asset_val_ind)
 
     profitability_ind_data = get_profitability_indicators_br(company)
     df_profitability = get_profitability_indicators_table(profitability_ind_data)

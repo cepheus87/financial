@@ -6,6 +6,7 @@ import re
 
 from utils.html_utils import fetch_website_text
 from utils.utils_data import get_br_name_mapping, find_date_element_index
+from utils.setup import ProjectConfig
 from financial.gain_loss_tools import YEARS_RANGE
 
 # Patterns for packed value rows
@@ -170,3 +171,93 @@ def get_assets_value_indicators_table(data: list) -> pd.DataFrame:
     df_yq = pd.DataFrame(year_quarter, columns=["Rok", "Kwartał"])
     df = pd.concat([df_yq, df], axis=1)
     return df
+
+
+def save_assets_value_indicators_plots(company: str, df_financial):
+
+    #TODO: create yearly version
+
+    rok = "rok"
+    okres = "okres"
+
+    df_financial = df_financial.copy()
+    df_financial["C/Z"] = df_financial["kurs"] / df_financial["zysk_na_akcje"]
+    df_financial["C/WK"] = df_financial["kurs"] / df_financial["wartosc_ksiegowa_na_akcje"]
+
+    output = os.path.join(ProjectConfig.base_data_path, "plots")
+    os.makedirs(output, exist_ok=True)
+
+    max_year = max(df_financial[rok].max(), df_financial[rok].max())
+    df_financial = df_financial[df_financial[rok] >= max_year - YEARS_RANGE]
+
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Plot 1: Zysk na akcje
+    axs[0, 0].plot(df_financial[okres], df_financial['zysk_na_akcje'], label='Zysk na akcję',
+                   marker='o', color='tab:blue')
+    ax2_00 = axs[0, 0].twinx()
+    ax2_00.plot(df_financial[okres], df_financial['zysk_na_akcje_k/k'], label='Zysk na akcję k/k',
+                marker='o', color='black')
+    axs[0, 0].set_title('Zysk na akcję')
+    axs[0, 0].set_xlabel(okres)
+    axs[0, 0].set_ylabel('Wartosc (PLN)')
+    ax2_00.set_ylabel('Zysk na akcję k/k', color='black')
+    axs[0, 0].tick_params(axis='x', rotation=90)
+    axs[0, 0].grid(True)
+    axs[0, 0].legend(loc='upper left')
+    ax2_00.legend(loc='lower left')
+
+    # Plot 2: C/Z
+    axs[0, 1].plot(df_financial[okres], df_financial['C/Z'], label='C/Z',
+                   marker='o', color='tab:orange')
+    ax2_01 = axs[0, 1].twinx()
+    # ax2_01.plot(df_financial[okres], df_financial['zysk_operacyjny_(ebit)_k/k'], label='Zysk operacyjny (EBIT) k/k',
+    #             marker='o', color='black')
+    ax2_01.plot(df_financial[okres], df_financial['kurs'], label='Kurs',
+                marker='o', color='black')
+    axs[0, 1].set_title('C/Z')
+    axs[0, 1].set_xlabel(okres)
+    axs[0, 1].set_ylabel('Wartosc')
+    ax2_01.set_ylabel('Kurs', color='black')
+    axs[0, 1].tick_params(axis='x', rotation=90)
+    axs[0, 1].grid(True)
+    axs[0, 1].legend(loc='upper left')
+    ax2_01.legend(loc='lower left')
+
+    # Plot 3: Wartość księgowa na akcję
+    axs[1, 0].plot(df_financial[okres], df_financial['wartosc_ksiegowa_na_akcje'], label='Wartość księgowa na akcję',
+                   marker='o',
+                   color='tab:green')
+    ax2_10 = axs[1, 0].twinx()
+    ax2_10.plot(df_financial[okres], df_financial['wartosc_ksiegowa_na_akcje_k/k'], label='Wartość księgowa na akcję '
+                                                                                          'k/k',
+                marker='o', color='black')
+    axs[1, 0].set_title('Zysk netto')
+    axs[1, 0].set_xlabel(okres)
+    axs[1, 0].set_ylabel('Wartosc (PLN)')
+    ax2_10.set_ylabel('Wartość księgowa na akcję k/k', color='black')
+    axs[1, 0].tick_params(axis='x', rotation=90)
+    axs[1, 0].grid(True)
+    axs[1, 0].legend(loc='upper left')
+    ax2_10.legend(loc='lower left')
+
+    # Plot 4: C/WK
+    axs[1, 1].plot(df_financial[okres], df_financial['C/WK'], label='C/WK', marker='o', color='tab:red')
+    # ax2_11 = axs[1, 1].twinx()
+    # ax2_11.plot(df_financial[okres], df_financial['ebitda_k/k'], label='EBITDA k/k', marker='o', color='black')
+    axs[1, 1].set_title('C/WK')
+    axs[1, 1].set_xlabel(okres)
+    axs[1, 1].set_ylabel('Wartosc')
+    # ax2_11.set_ylabel('EBITDA k/k', color='black')
+    axs[1, 1].tick_params(axis='x', rotation=90)
+    axs[1, 1].grid(True)
+    axs[1, 1].legend(loc='upper left')
+    # ax2_11.legend(loc='lower left')
+
+    fig.suptitle(f'Wskaźniki wartości rynkowej dla {company.lower()}', fontsize=16)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    out_fig_path = os.path.join(output, f'{company}_assets_value_indicators.png')
+    plt.savefig(out_fig_path)
+    print(f"Saved assets value indicators plot at {out_fig_path}")
+    plt.close()
