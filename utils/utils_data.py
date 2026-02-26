@@ -1,10 +1,13 @@
 import json
-from typing import List, Optional, Union
+import os
+from typing import List, Optional, Union, Callable
 import pandas as pd
 import re
 import warnings
 
-from utils.setup import ProjectConfig
+from numpy.ma.extras import apply_along_axis
+
+from utils.setup import ProjectConfig, data_categories_paths
 
 polish_to_english = str.maketrans(
     "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
@@ -90,3 +93,41 @@ def find_date_element_index(data: list) -> int:
             return i
 
     return -1
+
+class DataCacher:
+    def __init__(self, company: str, variable_name: str, data_category: str, download: bool,
+                 getter: Callable[[str], list], processor: Callable[[list], pd.DataFrame]):
+        self.company_name = company
+        self.variable_name = variable_name
+        self.data_category = data_category
+        self.files_data_path = data_categories_paths.get(data_category)
+        if not self.files_data_path:
+            raise ValueError(f"Invalid data category: {data_category}")
+        self.file_name = f"{self.company_name}_{self.variable_name}.csv"
+        self.download = download
+        self.getter = getter
+        self.processor = processor
+
+    def check_if_cached(self) -> bool:
+        file_path = os.path.join(self.files_data_path, f"{self.company_name}_{self.variable_name}.csv")
+        return os.path.exists(file_path)
+
+    def save_df_data(self, df: pd.DataFrame):
+        if not os.path.exists(self.files_data_path):
+            os.makedirs(self.files_data_path)
+        df.to_csv(os.path.join(self.files_data_path, self.file_name), index=False)
+
+    def download_data(self) -> pd.DataFrame:
+        data = self.getter(self.company_name)
+        df = self.processor(data)
+        self.save_df_data(df)
+        return df
+
+    def load_df_data(self) -> pd.DataFrame:
+        if self.download:
+            return self.download_data()
+        else:
+            if self.check_if_cached():
+                return pd.read_csv(os.path.join(self.files_data_path, self.file_name))
+            else:
+                raise RuntimeError(f"Data for {self.company_name} and variable {self.variable_name} not found in cache, and download is disabled.")

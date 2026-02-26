@@ -111,11 +111,11 @@ def save_companies_data(df: pd.DataFrame, company_name: str, ignore_save_errors:
     :param company_name: Name of the company
     :param ignore_save_errors: If True, ignores errors when saving the data
     """
-    save_path = Path(ProjectConfig.base_companies_path) / f"{company_name}.csv"
+    save_path = Path(ProjectConfig.base_companies_dividends_path) / f"{company_name}.csv"
     if save_path.exists() and not ignore_save_errors:
         raise RuntimeError(f"Data for {company_name} already exists in {save_path}")
 
-    os.makedirs(ProjectConfig.base_companies_path, exist_ok=True)
+    os.makedirs(ProjectConfig.base_companies_dividends_path, exist_ok=True)
     df.to_csv(save_path, index=False)
     print(f"Saved data for {company_name} to {save_path}")
 
@@ -213,7 +213,7 @@ def save_div_plots(company_name: str):
     os.makedirs(output, exist_ok=True)
 
     comp_file = f"{company_name}.csv"
-    company_path = Path(ProjectConfig.base_companies_path) / comp_file
+    company_path = Path(ProjectConfig.base_companies_dividends_path) / comp_file
     df_div = prepare_div_df(company_path)
 
 
