@@ -9,13 +9,40 @@ from financial.asset_value_indicators import (get_assets_value_indicators_br,
 from financial.profitability_indicators import (get_profitability_indicators_br, get_profitability_indicators_table,
                                                 save_profitability_indicators_plots)
 
+from financial.cash_flow import (get_cash_flow_br, get_cash_flow_table)
+
 from utils.utils_data import (process_financial_gain_loss_df, process_profitability_indicators_df,
-                              process_assets_value_indicators_df, DataCacher)
+                              process_assets_value_indicators_df,
+                              process_cash_flow_df,
+                              DataCacher)
 
 def main_test(company: str, download: bool):
     # comp = "asbisc"
     comp = company
     #TODO: start saving and loading data files after downloading, make functions for that
+
+    if download:
+        cash_flow_data = get_cash_flow_br(comp)
+        with open("cash_flow_data_br.pkl", "wb") as f:
+            import pickle
+            pickle.dump(cash_flow_data, f)
+    else:
+        if os.path.exists("cash_flow_data_br.pkl"):
+            with open("cash_flow_data_br.pkl", "rb") as f:
+                import pickle
+                cash_flow_data = pickle.load(f)
+
+        else:
+            cash_flow_data = get_financial_quarter_data_br(comp)
+            with open("cash_flow_data_br.pkl", "wb") as f:
+                import pickle
+                pickle.dump(cash_flow_data, f)
+
+    #TODO handle 3 edge cases inside
+    df_cash_flow = get_cash_flow_table(cash_flow_data)
+    df_cash_flow = process_cash_flow_df(df_cash_flow)
+
+    raise RuntimeError()
 
     if download:
         financial_data = get_financial_quarter_data_br(comp)
@@ -91,14 +118,11 @@ def main_test(company: str, download: bool):
 
 def main(company: str, download: bool):
     comp = "asbis"
-    #TODO: start saving and loading data files after downloading, make functions for that
 
+    # FINANCIAL DATA
     data_cacher = DataCacher(company, "df_financial", "financial", download,
                              getter=get_financial_quarter_data_br, processor=get_financial_gain_loss_table)
     df_financial = data_cacher.load_df_data()
-
-    # financial_data = get_financial_quarter_data_br(company)
-    # df_financial = get_financial_gain_loss_table(financial_data)
     df_financial = process_financial_gain_loss_df(df_financial)
 
     save_financial_gl_plots(company, df_financial)
@@ -107,9 +131,6 @@ def main(company: str, download: bool):
     data_cacher = DataCacher(company, "df_asset_val_ind", "financial", download,
                              getter=get_assets_value_indicators_br, processor=get_assets_value_indicators_table)
     df_asset_val_ind = data_cacher.load_df_data()
-
-    # asset_value_ind_data = get_assets_value_indicators_br(company)
-    # df_asset_val_ind = get_assets_value_indicators_table(asset_value_ind_data)
     df_asset_val_ind = process_assets_value_indicators_df(df_asset_val_ind)
 
     #TODO: use shares_price_num in dividend analysis
@@ -120,12 +141,11 @@ def main(company: str, download: bool):
     data_cacher = DataCacher(company, "df_profitability", "financial", download,
                              getter=get_profitability_indicators_br, processor=get_profitability_indicators_table)
     df_profitability = data_cacher.load_df_data()
-
-    # profitability_ind_data = get_profitability_indicators_br(company)
-    # df_profitability = get_profitability_indicators_table(profitability_ind_data)
     df_profitability = process_profitability_indicators_df(df_profitability)
 
     save_profitability_indicators_plots(company, df_profitability)
+
+
 
 if __name__ == "__main__":
 

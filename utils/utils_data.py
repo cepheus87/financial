@@ -87,6 +87,16 @@ def process_profitability_indicators_df(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def process_cash_flow_df(df: pd.DataFrame) -> pd.DataFrame:
+    raise NotImplementedError()
+
+    df = df.copy()
+
+    df.columns = change_column_names(df.columns.tolist())
+    df["rok"] = df["rok"].astype(int)
+
+    return df
+
 def find_date_element_index(data: list) -> int:
     for i, item in enumerate(data):
         if re.match(r"\d{4}/Q\d+", item[0]):
