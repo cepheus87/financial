@@ -76,6 +76,8 @@ CURRENCY_ALIASES = {
     "EURO": "EUR",
 }
 
+SUPPORTED_FILE_ACCOUNTS = {"ike", "xtb"}
+
 
 def _is_blank_or_dash(value: Any) -> bool:
     if value is None:
@@ -117,6 +119,43 @@ def _format_pln(value: Decimal) -> str:
     rounded = value.quantize(Decimal("1.00"), rounding=ROUND_HALF_UP)
     formatted = f"{rounded:,.2f}".replace(",", " ").replace(".", ",")
     return f"{formatted} zł"
+
+
+def _build_skipped_output_row(
+    date: str,
+    account: str,
+    transaction_type_raw: str,
+    name: str,
+    units_raw: Any,
+    price_in_currency_raw: Any,
+    currency: Any,
+    reason: str,
+) -> Dict[str, str]:
+    transaction_type_key = str(transaction_type_raw).strip().lower()
+    transaction_type = TYPE_TO_TRANSACTION.get(transaction_type_key, str(transaction_type_raw))
+    normalized_currency = _normalize_currency(currency)
+    safe_name = "-" if _is_blank_or_dash(name) else str(name)
+    safe_units = "-" if _is_blank_or_dash(units_raw) else str(units_raw)
+    safe_price = "-" if _is_blank_or_dash(price_in_currency_raw) else str(price_in_currency_raw)
+
+    return {
+        "Konto": str(account),
+        "Data": str(date),
+        "Ticker": safe_name,
+        "Waluta": normalized_currency,
+        "Nazwa": safe_name,
+        "Klasa aktywów": "-",
+        "Rodzaj transakcji": transaction_type,
+        "Liczba": safe_units,
+        "Cena": safe_price,
+        "Prowizje": "0,00",
+        "Kurs PLN transakcji": "-",
+        "Cena nominalna": "1,00",
+        "Total PLN": "-",
+        "Klucz": "-",
+        "XIRR": "-",
+        "Komentarz": f"Nie wygenerowano outputu: {reason}",
+    }
 
 
 def _calculate_fx_and_commission_from_full_cost(
@@ -360,7 +399,48 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
                     "comment": row.get("comment", ""),
                 }
 
+            account_name = str(build_kwargs["account"]).strip().lower()
+            if account_name not in SUPPORTED_FILE_ACCOUNTS:
+                rows.append(
+                    _build_skipped_output_row(
+                        date=build_kwargs["date"],
+                        account=build_kwargs["account"],
+                        transaction_type_raw=build_kwargs["transaction_type_raw"],
+                        name=build_kwargs["name"],
+                        units_raw=build_kwargs["units_raw"],
+                        price_in_currency_raw=build_kwargs["price_in_currency_raw"],
+                        currency=build_kwargs["currency"],
+                        reason=(
+                            f"konto '{build_kwargs['account']}' nie jest obsługiwane "
+                            f"(obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
+                        ),
+                    )
+                )
+                continue
+
             rows.append(_build_transaction_row(portfolio_df=portfolio_df, **build_kwargs))
+        except ValueError as exc:
+            msg = str(exc)
+            mismatch_markers = [
+                "Nie znaleziono aktywa",
+                "Nie znaleziono konta",
+                "Niejednoznaczne dopasowanie aktywa",
+            ]
+            if any(marker in msg for marker in mismatch_markers):
+                rows.append(
+                    _build_skipped_output_row(
+                        date=build_kwargs["date"],
+                        account=build_kwargs["account"],
+                        transaction_type_raw=build_kwargs["transaction_type_raw"],
+                        name=build_kwargs["name"],
+                        units_raw=build_kwargs["units_raw"],
+                        price_in_currency_raw=build_kwargs["price_in_currency_raw"],
+                        currency=build_kwargs["currency"],
+                        reason=msg,
+                    )
+                )
+                continue
+            raise ValueError(f"Błąd w wierszu {line_no} pliku wejściowego: {exc}") from exc
         except Exception as exc:
             raise ValueError(f"Błąd w wierszu {line_no} pliku wejściowego: {exc}") from exc
 
