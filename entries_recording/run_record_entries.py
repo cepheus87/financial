@@ -7,7 +7,7 @@ from typing import Optional
 from record_entry import get_entry_values, COMMISION_RATE
 
 DIVIDEND = "div"
-PAYMENT = "pay"
+PAYMENT = "dep"
 SELL = "sell"
 
 def run(args: argparse.Namespace):
@@ -29,7 +29,7 @@ def run(args: argparse.Namespace):
             format_output(currency_rate, row, full_cost_name="dividend")
         elif PAYMENT in row["type"].lower():
             currency_rate = 0.0
-            format_output(currency_rate, row, full_cost_name="payment")
+            format_output(currency_rate, row, full_cost_name="deposit")
         else:
             with redirect_stdout(f):
                 currency_rate, _ = get_entry_values(full_cost, COMMISION_RATE, price_in_currency, units, sell=sell)

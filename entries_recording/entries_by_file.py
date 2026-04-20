@@ -1,12 +1,13 @@
-# TODO: dorobic wczytywanie pliku, ktory liczy dodatkowy kurs na podstawie full price - uzyc record_entry oraz
-#  przerabia deposit na wartosc w price_in_currency
-
 import argparse
+import io
+from contextlib import redirect_stdout
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pandas as pd
+
+from record_entry import get_entry_values
 
 TRANSACTION_COLUMNS = [
     "Konto",
@@ -32,6 +33,8 @@ TYPE_TO_TRANSACTION = {
     "sell": "Sprzedaż",
     "div": "Dywidenda / Odsetki",
     "dividend": "Dywidenda / Odsetki",
+    "dep": "Wpłata środków",
+    "payment": "Wpłata środków",
     "deposit": "Wpłata środków",
     "withdraw": "Wypłata środków",
 }
@@ -57,6 +60,21 @@ INPUT_REQUIRED_COLUMNS = [
     "price_in_currency",
     "currency",
 ]
+
+TRANSAKCJE_INPUT_REQUIRED_COLUMNS = [
+    "data",
+    "account",
+    "type",
+    "name",
+    "units",
+    "price_in_currency",
+    "currency",
+    "full_cost",
+]
+
+CURRENCY_ALIASES = {
+    "EURO": "EUR",
+}
 
 
 def _is_blank_or_dash(value: Any) -> bool:
@@ -84,6 +102,11 @@ def _to_decimal(value: Any) -> Decimal:
     return Decimal(str(value))
 
 
+def _normalize_currency(value: Any) -> str:
+    raw = "" if value is None else str(value).strip().upper()
+    return CURRENCY_ALIASES.get(raw, raw)
+
+
 def _format_decimal(value: Decimal, places: int) -> str:
     quant = Decimal("1") if places == 0 else Decimal("1." + "0" * places)
     rounded = value.quantize(quant, rounding=ROUND_HALF_UP)
@@ -94,6 +117,80 @@ def _format_pln(value: Decimal) -> str:
     rounded = value.quantize(Decimal("1.00"), rounding=ROUND_HALF_UP)
     formatted = f"{rounded:,.2f}".replace(",", " ").replace(".", ",")
     return f"{formatted} zł"
+
+
+def _calculate_fx_and_commission_from_full_cost(
+    full_cost_raw: Any,
+    price_in_currency_raw: Any,
+    units_raw: Any,
+    sell: bool,
+) -> tuple[float, float]:
+    full_cost = float(_to_decimal(full_cost_raw))
+    price_in_currency = float(_to_decimal(price_in_currency_raw))
+    units = float(_to_decimal(units_raw))
+
+    with redirect_stdout(io.StringIO()):
+        fx_rate, _ = get_entry_values(
+            full_cost,
+            0.0,
+            price_in_currency,
+            units,
+            sell=sell,
+        )
+    return fx_rate, 0.0
+
+
+def _looks_like_transakcje_input(input_df: pd.DataFrame) -> bool:
+    return all(col in input_df.columns for col in TRANSAKCJE_INPUT_REQUIRED_COLUMNS)
+
+
+def _map_transakcje_row_to_build_kwargs(row: pd.Series) -> Dict[str, Any]:
+    transaction_type_raw = row["type"]
+    transaction_type_key = str(transaction_type_raw).strip().lower()
+
+    name = "" if _is_blank_or_dash(row["name"]) else row["name"]
+    units_raw: Any = "1" if _is_blank_or_dash(row["units"]) else row["units"]
+    price_raw: Any = row["price_in_currency"]
+
+    fx_rate_raw: Any = row.get("fx_rate", "1,0")
+    commission_raw: Any = row.get("commission", "0,00")
+
+    if transaction_type_key in CASH_TRANSACTION_TYPES or transaction_type_key in {"dep", "payment"}:
+        units_raw = "1"
+        if _is_blank_or_dash(price_raw):
+            price_raw = row["full_cost"]
+        fx_rate_raw = "1,0"
+        commission_raw = "0,00"
+    elif "div" in transaction_type_key:
+        fx_rate_raw = "1,0"
+        commission_raw = "0,00"
+        if _is_blank_or_dash(price_raw) or _to_decimal(price_raw) == Decimal("0"):
+            full_cost = _to_decimal(row["full_cost"])
+            units = _to_decimal(units_raw)
+            if units == 0:
+                units = Decimal("1")
+                units_raw = "1"
+            price_raw = full_cost / units
+    else:
+        fx_rate_raw, commission_raw = _calculate_fx_and_commission_from_full_cost(
+            full_cost_raw=row["full_cost"],
+            price_in_currency_raw=price_raw,
+            units_raw=units_raw,
+            sell=transaction_type_key == "sell",
+        )
+
+    return {
+        "date": row["data"],
+        "account": row["account"],
+        "transaction_type_raw": transaction_type_raw,
+        "name": name,
+        "units_raw": units_raw,
+        "price_in_currency_raw": price_raw,
+        "currency": row["currency"],
+        "fx_rate_raw": fx_rate_raw,
+        "commission_raw": commission_raw,
+        "comment": row.get("comments", ""),
+    }
 
 
 def _resolve_asset_row(portfolio_df: pd.DataFrame, account: str, name: str) -> pd.Series:
@@ -151,9 +248,9 @@ def _build_transaction_row(
             f"Nieobsługiwany typ transakcji '{transaction_type_raw}'. Obsługiwane: {supported}"
         )
 
-    requested_currency = str(currency).strip().upper()
+    requested_currency = _normalize_currency(currency)
     fx_rate = _to_decimal(fx_rate_raw)
-    commission = _to_decimal(commission_raw)
+    commission = Decimal("0")
 
     if transaction_type_key in CASH_TRANSACTION_TYPES:
         amount = _to_decimal(price_in_currency_raw)
@@ -233,29 +330,37 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
     portfolio_df = pd.read_csv(args.portfolio_path)
     input_df = pd.read_csv(args.input_path, dtype=str)
 
-    missing_columns = [col for col in INPUT_REQUIRED_COLUMNS if col not in input_df.columns]
-    if missing_columns:
-        missing = ", ".join(missing_columns)
-        raise ValueError(f"Brak wymaganych kolumn w pliku wejściowym: {missing}")
+    transakcje_format = _looks_like_transakcje_input(input_df)
+    if not transakcje_format:
+        missing_columns = [col for col in INPUT_REQUIRED_COLUMNS if col not in input_df.columns]
+        if missing_columns:
+            missing = ", ".join(missing_columns)
+            raise ValueError(
+                "Brak wymaganych kolumn w pliku wejściowym. "
+                f"Dla prostego formatu wymagane: {', '.join(INPUT_REQUIRED_COLUMNS)}. "
+                f"Brak: {missing}"
+            )
 
     rows: List[Dict[str, str]] = []
     for line_no, (_, row) in enumerate(input_df.iterrows(), start=2):
         try:
-            rows.append(
-                _build_transaction_row(
-                    portfolio_df=portfolio_df,
-                    date=row["date"],
-                    account=row["account"],
-                    transaction_type_raw=row["type"],
-                    name="" if _is_blank_or_dash(row["name"]) else row["name"],
-                    units_raw="1" if _is_blank_or_dash(row["units"]) else row["units"],
-                    price_in_currency_raw=row["price_in_currency"],
-                    currency=row["currency"],
-                    fx_rate_raw=row.get("fx_rate", "1,0"),
-                    commission_raw=row.get("commission", "0,00"),
-                    comment=row.get("comment", ""),
-                )
-            )
+            if transakcje_format:
+                build_kwargs = _map_transakcje_row_to_build_kwargs(row)
+            else:
+                build_kwargs = {
+                    "date": row["date"],
+                    "account": row["account"],
+                    "transaction_type_raw": row["type"],
+                    "name": "" if _is_blank_or_dash(row["name"]) else row["name"],
+                    "units_raw": "1" if _is_blank_or_dash(row["units"]) else row["units"],
+                    "price_in_currency_raw": row["price_in_currency"],
+                    "currency": row["currency"],
+                    "fx_rate_raw": row.get("fx_rate", "1,0"),
+                    "commission_raw": row.get("commission", "0,00"),
+                    "comment": row.get("comment", ""),
+                }
+
+            rows.append(_build_transaction_row(portfolio_df=portfolio_df, **build_kwargs))
         except Exception as exc:
             raise ValueError(f"Błąd w wierszu {line_no} pliku wejściowego: {exc}") from exc
 
