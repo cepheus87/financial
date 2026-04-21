@@ -1,3 +1,5 @@
+
+
 import argparse
 import io
 from contextlib import redirect_stdout
@@ -77,6 +79,10 @@ CURRENCY_ALIASES = {
 }
 
 SUPPORTED_FILE_ACCOUNTS = {"ike", "xtb"}
+
+
+def _is_dividend_type(transaction_type_key: str) -> bool:
+    return "div" in str(transaction_type_key).strip().lower()
 
 
 def _is_blank_or_dash(value: Any) -> bool:
@@ -200,16 +206,6 @@ def _map_transakcje_row_to_build_kwargs(row: pd.Series) -> Dict[str, Any]:
             price_raw = row["full_cost"]
         fx_rate_raw = "1,0"
         commission_raw = "0,00"
-    elif "div" in transaction_type_key:
-        fx_rate_raw = "1,0"
-        commission_raw = "0,00"
-        if _is_blank_or_dash(price_raw) or _to_decimal(price_raw) == Decimal("0"):
-            full_cost = _to_decimal(row["full_cost"])
-            units = _to_decimal(units_raw)
-            if units == 0:
-                units = Decimal("1")
-                units_raw = "1"
-            price_raw = full_cost / units
     else:
         fx_rate_raw, commission_raw = _calculate_fx_and_commission_from_full_cost(
             full_cost_raw=row["full_cost"],
@@ -322,6 +318,7 @@ def _build_transaction_row(
             f"Waluta z argumentu ('{requested_currency}') nie zgadza się z Portfolio ('{portfolio_currency}') "
             f"dla aktywa '{asset_row['Ticker']}'."
         )
+    output_currency = requested_currency
 
     units = _to_decimal(units_raw)
     price = _to_decimal(price_in_currency_raw)
@@ -331,7 +328,7 @@ def _build_transaction_row(
         "Konto": str(account),
         "Data": str(date),
         "Ticker": str(asset_row["Ticker"]),
-        "Waluta": requested_currency,
+        "Waluta": output_currency,
         "Nazwa": str(asset_row["Nazwa"]),
         "Klasa aktywów": str(asset_row["Klasa aktywów"]),
         "Rodzaj transakcji": transaction_type,
@@ -341,7 +338,7 @@ def _build_transaction_row(
         "Kurs PLN transakcji": _format_decimal(fx_rate, 2),
         "Cena nominalna": "1,00",
         "Total PLN": _format_pln(total_pln),
-        "Klucz": f"{account}##{asset_row['Ticker']}##{asset_row['Klasa aktywów']}##{requested_currency}",
+        "Klucz": f"{account}##{asset_row['Ticker']}##{asset_row['Klasa aktywów']}##{output_currency}",
         "XIRR": "0",
         "Komentarz": normalized_comment,
     }
@@ -382,22 +379,41 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
 
     rows: List[Dict[str, str]] = []
     for line_no, (_, row) in enumerate(input_df.iterrows(), start=2):
+        input_type = row.get("type", "")
+        if _is_dividend_type(input_type):
+            print(f"Pominięto dywidendę w wierszu {line_no}: {row.to_dict()}")
+            rows.append(
+                _build_skipped_output_row(
+                    date=row.get("data", row.get("date", "")),
+                    account=row.get("account", ""),
+                    transaction_type_raw=input_type,
+                    name=row.get("name", ""),
+                    units_raw=row.get("units", ""),
+                    price_in_currency_raw=row.get("price_in_currency", ""),
+                    currency=row.get("currency", ""),
+                    reason="typ dywidenda nie jest obsługiwany",
+                )
+            )
+            continue
+
+        build_kwargs: Dict[str, Any] = {
+            "date": row.get("data", row.get("date", "")),
+            "account": row.get("account", ""),
+            "transaction_type_raw": row.get("type", ""),
+            "name": "" if _is_blank_or_dash(row.get("name", "")) else row.get("name", ""),
+            "units_raw": "1" if _is_blank_or_dash(row.get("units", "")) else row.get("units", ""),
+            "price_in_currency_raw": row.get("price_in_currency", ""),
+            "currency": row.get("currency", ""),
+            "fx_rate_raw": row.get("fx_rate", "1,0"),
+            "commission_raw": row.get("commission", "0,00"),
+            "comment": row.get("comments", row.get("comment", "")),
+        }
         try:
             if transakcje_format:
                 build_kwargs = _map_transakcje_row_to_build_kwargs(row)
             else:
-                build_kwargs = {
-                    "date": row["date"],
-                    "account": row["account"],
-                    "transaction_type_raw": row["type"],
-                    "name": "" if _is_blank_or_dash(row["name"]) else row["name"],
-                    "units_raw": "1" if _is_blank_or_dash(row["units"]) else row["units"],
-                    "price_in_currency_raw": row["price_in_currency"],
-                    "currency": row["currency"],
-                    "fx_rate_raw": row.get("fx_rate", "1,0"),
-                    "commission_raw": row.get("commission", "0,00"),
-                    "comment": row.get("comment", ""),
-                }
+                # Keep mapped defaults from generic/simple input format.
+                pass
 
             account_name = str(build_kwargs["account"]).strip().lower()
             if account_name not in SUPPORTED_FILE_ACCOUNTS:
