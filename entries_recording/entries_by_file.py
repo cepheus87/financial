@@ -387,7 +387,10 @@ def build_transaction_entry(args: argparse.Namespace) -> pd.DataFrame:
     return pd.DataFrame([entry], columns=TRANSACTION_COLUMNS)
 
 
-def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFrame:
+def build_transaction_entries_from_file_with_problems(
+    args: argparse.Namespace,
+    include_problem_rows: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     portfolio_df = pd.read_csv(args.portfolio_path)
     input_df = pd.read_csv(args.input_path, dtype=str)
 
@@ -403,22 +406,26 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
             )
 
     rows: List[Dict[str, str]] = []
+    problem_input_rows: List[Dict[str, Any]] = []
     for line_no, (_, row) in enumerate(input_df.iterrows(), start=2):
+        raw_input_row = {col: row.get(col, "") for col in input_df.columns}
         input_type = row.get("type", "")
         if _is_dividend_type(input_type):
             print(f"Pominięto dywidendę w wierszu {line_no}: {row.to_dict()}")
-            rows.append(
-                _build_skipped_output_row(
-                    date=row.get("data", row.get("date", "")),
-                    account=row.get("account", ""),
-                    transaction_type_raw=input_type,
-                    name=row.get("name", ""),
-                    units_raw=row.get("units", ""),
-                    price_in_currency_raw=row.get("price_in_currency", ""),
-                    currency=row.get("currency", ""),
-                    reason="typ dywidenda nie jest obsługiwany",
+            problem_input_rows.append(raw_input_row)
+            if include_problem_rows:
+                rows.append(
+                    _build_skipped_output_row(
+                        date=row.get("data", row.get("date", "")),
+                        account=row.get("account", ""),
+                        transaction_type_raw=input_type,
+                        name=row.get("name", ""),
+                        units_raw=row.get("units", ""),
+                        price_in_currency_raw=row.get("price_in_currency", ""),
+                        currency=row.get("currency", ""),
+                        reason="typ dywidenda nie jest obsługiwany",
+                    )
                 )
-            )
             continue
 
         build_kwargs: Dict[str, Any] = {
@@ -447,21 +454,23 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
                     f"'{build_kwargs['account']}' w wierszu {line_no} "
                     f"(obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
                 )
-                rows.append(
-                    _build_skipped_output_row(
-                        date=build_kwargs["date"],
-                        account=build_kwargs["account"],
-                        transaction_type_raw=build_kwargs["transaction_type_raw"],
-                        name=build_kwargs["name"],
-                        units_raw=build_kwargs["units_raw"],
-                        price_in_currency_raw=build_kwargs["price_in_currency_raw"],
-                        currency=build_kwargs["currency"],
-                        reason=(
-                            f"konto '{build_kwargs['account']}' nie jest obsługiwane "
-                            f"(obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
-                        ),
+                problem_input_rows.append(raw_input_row)
+                if include_problem_rows:
+                    rows.append(
+                        _build_skipped_output_row(
+                            date=build_kwargs["date"],
+                            account=build_kwargs["account"],
+                            transaction_type_raw=build_kwargs["transaction_type_raw"],
+                            name=build_kwargs["name"],
+                            units_raw=build_kwargs["units_raw"],
+                            price_in_currency_raw=build_kwargs["price_in_currency_raw"],
+                            currency=build_kwargs["currency"],
+                            reason=(
+                                f"konto '{build_kwargs['account']}' nie jest obsługiwane "
+                                f"(obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
+                            ),
+                        )
                     )
-                )
                 continue
 
             rows.append(_build_transaction_row(portfolio_df=portfolio_df, **build_kwargs))
@@ -473,24 +482,34 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
                 "Niejednoznaczne dopasowanie aktywa",
             ]
             if any(marker in msg for marker in mismatch_markers):
-                rows.append(
-                    _build_skipped_output_row(
-                        date=build_kwargs["date"],
-                        account=build_kwargs["account"],
-                        transaction_type_raw=build_kwargs["transaction_type_raw"],
-                        name=build_kwargs["name"],
-                        units_raw=build_kwargs["units_raw"],
-                        price_in_currency_raw=build_kwargs["price_in_currency_raw"],
-                        currency=build_kwargs["currency"],
-                        reason=msg,
+                problem_input_rows.append(raw_input_row)
+                if include_problem_rows:
+                    rows.append(
+                        _build_skipped_output_row(
+                            date=build_kwargs["date"],
+                            account=build_kwargs["account"],
+                            transaction_type_raw=build_kwargs["transaction_type_raw"],
+                            name=build_kwargs["name"],
+                            units_raw=build_kwargs["units_raw"],
+                            price_in_currency_raw=build_kwargs["price_in_currency_raw"],
+                            currency=build_kwargs["currency"],
+                            reason=msg,
+                        )
                     )
-                )
                 continue
             raise ValueError(f"Błąd w wierszu {line_no} pliku wejściowego: {exc}") from exc
         except Exception as exc:
             raise ValueError(f"Błąd w wierszu {line_no} pliku wejściowego: {exc}") from exc
 
-    return pd.DataFrame(rows, columns=TRANSACTION_COLUMNS)
+    return (
+        pd.DataFrame(rows, columns=TRANSACTION_COLUMNS),
+        pd.DataFrame(problem_input_rows, columns=input_df.columns),
+    )
+
+
+def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFrame:
+    entry_df, _ = build_transaction_entries_from_file_with_problems(args, include_problem_rows=True)
+    return entry_df
 
 
 def write_entries_to_file(entry_df: pd.DataFrame, output_path: Path) -> None:
@@ -583,13 +602,29 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if args.input_path:
-        entry_df = build_transaction_entries_from_file(args)
+        if args.output_mode == "file":
+            entry_df, problems_df = build_transaction_entries_from_file_with_problems(
+                args,
+                include_problem_rows=False,
+            )
+        else:
+            entry_df = build_transaction_entries_from_file(args)
+            problems_df = pd.DataFrame()
     else:
         entry_df = build_transaction_entry(args)
+        problems_df = pd.DataFrame()
 
     if args.output_mode == "file":
         write_entries_to_file(entry_df, Path(args.output_path))
-        print(f"Zapisano {len(entry_df)} wpis(ów) do pliku: {args.output_path}")
+        if args.input_path:
+            problems_path = Path(args.output_path).with_name("problems.csv")
+            write_entries_to_file(problems_df, problems_path)
+            print(
+                f"Zapisano {len(entry_df)} wpis(ów) do pliku: {args.output_path}. "
+                f"Pominięte wpisy zapisano do: {problems_path} ({len(problems_df)} wiersz(y))."
+            )
+        else:
+            print(f"Zapisano {len(entry_df)} wpis(ów) do pliku: {args.output_path}")
         return
 
     print(entry_df.to_csv(index=False))
