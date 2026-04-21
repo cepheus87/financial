@@ -164,6 +164,10 @@ def _build_skipped_output_row(
     }
 
 
+def _is_supported_account(account: Any) -> bool:
+    return str(account).strip().lower() in SUPPORTED_FILE_ACCOUNTS
+
+
 def _calculate_fx_and_commission_from_full_cost(
     full_cost_raw: Any,
     price_in_currency_raw: Any,
@@ -303,7 +307,7 @@ def _build_transaction_row(
             "Liczba": "1,0",
             "Cena": "1,0000",
             "Prowizje": _format_decimal(commission, 2),
-            "Kurs PLN transakcji": _format_decimal(fx_rate, 2),
+            "Kurs PLN transakcji": _format_decimal(fx_rate, 5),
             "Cena nominalna": "1,00",
             "Total PLN": _format_pln(total_pln),
             "Klucz": f"{account}##Gotówka##Gotówka##{requested_currency}",
@@ -335,7 +339,7 @@ def _build_transaction_row(
         "Liczba": _format_decimal(units, 1),
         "Cena": _format_decimal(price, 4),
         "Prowizje": _format_decimal(commission, 2),
-        "Kurs PLN transakcji": _format_decimal(fx_rate, 2),
+        "Kurs PLN transakcji": _format_decimal(fx_rate, 5),
         "Cena nominalna": "1,00",
         "Total PLN": _format_pln(total_pln),
         "Klucz": f"{account}##{asset_row['Ticker']}##{asset_row['Klasa aktywów']}##{output_currency}",
@@ -346,6 +350,27 @@ def _build_transaction_row(
 
 def build_transaction_entry(args: argparse.Namespace) -> pd.DataFrame:
     portfolio_df = pd.read_csv(args.portfolio_path)
+
+    if not _is_supported_account(args.account):
+        print(
+            "Nieobsługiwane konto: "
+            f"'{args.account}' (obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
+        )
+        skipped = _build_skipped_output_row(
+            date=args.date,
+            account=args.account,
+            transaction_type_raw=args.type,
+            name=args.name,
+            units_raw=args.units,
+            price_in_currency_raw=args.price_in_currency,
+            currency=args.currency,
+            reason=(
+                f"konto '{args.account}' nie jest obsługiwane "
+                f"(obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
+            ),
+        )
+        return pd.DataFrame([skipped], columns=TRANSACTION_COLUMNS)
+
     entry = _build_transaction_row(
         portfolio_df=portfolio_df,
         date=args.date,
@@ -417,6 +442,11 @@ def build_transaction_entries_from_file(args: argparse.Namespace) -> pd.DataFram
 
             account_name = str(build_kwargs["account"]).strip().lower()
             if account_name not in SUPPORTED_FILE_ACCOUNTS:
+                print(
+                    "Nieobsługiwane konto: "
+                    f"'{build_kwargs['account']}' w wierszu {line_no} "
+                    f"(obsługiwane: {', '.join(sorted(SUPPORTED_FILE_ACCOUNTS))})"
+                )
                 rows.append(
                     _build_skipped_output_row(
                         date=build_kwargs["date"],
