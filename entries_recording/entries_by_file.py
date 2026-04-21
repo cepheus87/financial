@@ -127,6 +127,13 @@ def _format_pln(value: Decimal) -> str:
     return f"{formatted} zł"
 
 
+def _format_xirr(value: Decimal) -> str:
+    text = _format_decimal(value, 2)
+    if text.endswith(",00"):
+        return text[:-3]
+    return text
+
+
 def _build_skipped_output_row(
     date: str,
     account: str,
@@ -206,7 +213,7 @@ def _map_transakcje_row_to_build_kwargs(row: pd.Series) -> Dict[str, Any]:
 
     if transaction_type_key in CASH_TRANSACTION_TYPES or transaction_type_key in {"dep", "payment"}:
         units_raw = "1"
-        if _is_blank_or_dash(price_raw):
+        if _is_blank_or_dash(price_raw) or _to_decimal(price_raw) == Decimal("0"):
             price_raw = row["full_cost"]
         fx_rate_raw = "1,0"
         commission_raw = "0,00"
@@ -311,7 +318,7 @@ def _build_transaction_row(
             "Cena nominalna": "1,00",
             "Total PLN": _format_pln(total_pln),
             "Klucz": f"{account}##Gotówka##Gotówka##{requested_currency}",
-            "XIRR": _format_decimal(xirr_value, 2),
+            "XIRR": _format_xirr(xirr_value),
             "Komentarz": normalized_comment,
         }
 
