@@ -621,6 +621,10 @@ def main() -> None:
         entry_df = build_transaction_entry(args)
         problems_df = pd.DataFrame()
 
+    if "Konto" in entry_df.columns:
+        # TODO works only for xtb and ike handling
+        entry_df["Konto"] = entry_df["Konto"].str.lower()
+
     if args.output_mode == "file":
         write_entries_to_file(entry_df, Path(args.output_path))
         if args.input_path:
