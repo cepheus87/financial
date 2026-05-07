@@ -21,7 +21,19 @@ class FXData:
 
         self.cached_years = self.get_cached_years()
         self.download_data(list(set(years).difference(self.cached_years)))
+        self._full_data = None
 
+    @property
+    def data(self) -> pd.DataFrame:
+        if self._full_data is None:
+            self._load_all_data()
+        return self._full_data.copy()
+
+    def _load_all_data(self):
+        dfs = []
+        for year in self.years:
+            dfs.append(self.get_data(year))
+        self._full_data = pd.concat(dfs, ignore_index=True)
 
     def get_filename(self, year: str) -> str:
         return self.BASE_FILENAME.replace("YYYY", str(year))
@@ -44,18 +56,29 @@ class FXData:
 
             df =  pd.read_csv(os.path.join(self.CACHED_DATA_PATH, self.get_filename(year)), sep=";",
                                encoding="cp1250", skiprows=[1],)
-                               # parse_dates=True, infer_datetime_format=True)
+
             return self.process_data(df)
         else:
             raise ValueError(f"Data for year {year} is not available. Sth went wrong.")
 
-    def process_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def process_data(df: pd.DataFrame) -> pd.DataFrame:
+        date_old_name = "data"
+        date_new_name = "date"
 
-        return_df = df.copy()
-        #TODO change , to .
-        return_df = return_df.iloc[:-3]
-        return_df["data"] = pd.to_datetime(return_df["data"], format="%Y%m%d")
-        return return_df
+        new_df = df.copy()
+        new_df = new_df.iloc[:-3]
+        new_df = new_df.iloc[:, :-3]
+
+        new_df = new_df.applymap(lambda x: str(x).strip().replace(",", "."))
+
+        new_df.rename(columns={date_old_name: date_new_name}, inplace=True)
+        new_df[date_new_name] = pd.to_datetime(new_df[date_new_name], format="%Y%m%d")
+
+        currencies = list(set(new_df.columns) - set([date_new_name]))
+        new_df[currencies] = new_df[currencies].astype(float)
+
+        return new_df
 
 
 def main():
@@ -70,7 +93,9 @@ def main():
     fx = FXData(["2023", "2025"])
     print(fx.year_urls)
 
-    df = fx.get_data("2023")
+    # df = fx.get_data("2023")
+
+    data = fx.data
 
     a = 1
 
