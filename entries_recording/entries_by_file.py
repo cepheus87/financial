@@ -270,6 +270,13 @@ def _resolve_asset_row(portfolio_df: pd.DataFrame, account: str, name: str) -> p
 
     return matches.iloc[0]
 
+def _normalize_account_name(name: str) -> str:
+    if name.lower() == "xtb":
+        return "xtb"
+    elif name.lower() == "ike":
+        return "ike"
+    else:
+        return name
 
 def _build_transaction_row(
     portfolio_df: pd.DataFrame,
@@ -285,6 +292,9 @@ def _build_transaction_row(
     comment: str = "",
 ) -> Dict[str, str]:
     normalized_comment = "" if _is_blank_or_dash(comment) else str(comment)
+
+    account = _normalize_account_name(account)
+
 
     transaction_type_key = str(transaction_type_raw).strip().lower()
     transaction_type = TYPE_TO_TRANSACTION.get(transaction_type_key)
