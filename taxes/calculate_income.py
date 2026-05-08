@@ -1,6 +1,8 @@
 import os
 import pandas as pd
+import re
 from typing import List
+
 
 
 from utils.html_utils import fetch_website_text, get_binary_response
@@ -10,11 +12,13 @@ class FXData:
     BASE_FILENAME = "archiwum_tab_a_YYYY.csv"
     BASE_NBP_URL = f"https://static.nbp.pl/dane/kursy/Archiwum/"
     CACHED_DATA_PATH = os.path.join( "..", "data", "fx_data")
+    DATE_OLD_NAME = "data"
+    DATE_NEW_NAME = "date"
 
 
     def __init__(self, years: List[str]):
         self.years = years
-        self.year_urls = {year: f"{self.BASE_NBP_URL}{self.get_filename(year)}" for year in self.years}
+        self.year_urls = {year: f"{self.BASE_NBP_URL}{self._get_filename(year)}" for year in self.years}
 
         if not os.path.exists(self.CACHED_DATA_PATH):
             os.makedirs(self.CACHED_DATA_PATH)
@@ -35,7 +39,7 @@ class FXData:
             dfs.append(self.get_data(year))
         self._full_data = pd.concat(dfs, ignore_index=True)
 
-    def get_filename(self, year: str) -> str:
+    def _get_filename(self, year: str) -> str:
         return self.BASE_FILENAME.replace("YYYY", str(year))
 
     def get_cached_years(self) -> List[str]:
@@ -54,28 +58,48 @@ class FXData:
     def get_data(self, year: str) -> pd.DataFrame:
         if year in self.cached_years:
 
-            df =  pd.read_csv(os.path.join(self.CACHED_DATA_PATH, self.get_filename(year)), sep=";",
-                               encoding="cp1250", skiprows=[1],)
+            df =  pd.read_csv(os.path.join(self.CACHED_DATA_PATH, self._get_filename(year)), sep=";",
+                              encoding="cp1250", skiprows=[1], )
 
-            return self.process_data(df)
+            return self._process_data(df)
         else:
             raise ValueError(f"Data for year {year} is not available. Sth went wrong.")
 
-    @staticmethod
-    def process_data(df: pd.DataFrame) -> pd.DataFrame:
-        date_old_name = "data"
-        date_new_name = "date"
+    def get_fx_value(self, date: str, currency: str) -> float:
+
+        def find_currency_column_index(columns, currency):
+            for idx, col in enumerate(columns):
+                match = re.search(r'^\d*([A-Za-z]+)$', col)
+                if match and match.group(1) == currency:
+                    return idx
+            return -1  # Not found
+
+        df = self.data.copy()
+        date = pd.to_datetime(date) #, format="%Y%m%d")
+
+        row = df[df[self.DATE_NEW_NAME] == date]
+        if row.empty:
+            raise ValueError(f"No data available for date {date}")
+
+        idx = find_currency_column_index(df.columns, currency)
+        if idx == -1:
+            raise ValueError(f"Currency {currency} is not available for date {date}")
+
+        return float(row.iloc[0,idx])
+
+    @classmethod
+    def _process_data(cls, df: pd.DataFrame) -> pd.DataFrame:
 
         new_df = df.copy()
         new_df = new_df.iloc[:-3]
         new_df = new_df.iloc[:, :-3]
 
-        new_df = new_df.applymap(lambda x: str(x).strip().replace(",", "."))
+        new_df = new_df.astype(str).apply(lambda col: col.map(lambda x: x.strip().replace(",", ".")))
 
-        new_df.rename(columns={date_old_name: date_new_name}, inplace=True)
-        new_df[date_new_name] = pd.to_datetime(new_df[date_new_name], format="%Y%m%d")
+        new_df.rename(columns={cls.DATE_OLD_NAME: cls.DATE_NEW_NAME}, inplace=True)
+        new_df[cls.DATE_NEW_NAME] = pd.to_datetime(new_df[cls.DATE_NEW_NAME], format="%Y%m%d")
 
-        currencies = list(set(new_df.columns) - set([date_new_name]))
+        currencies = list(set(new_df.columns) - set([cls.DATE_NEW_NAME]))
         new_df[currencies] = new_df[currencies].astype(float)
 
         return new_df
@@ -96,6 +120,8 @@ def main():
     # df = fx.get_data("2023")
 
     data = fx.data
+
+    fx_val = fx.get_fx_value("2025-12-02", "USD")
 
     a = 1
 

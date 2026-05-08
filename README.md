@@ -12,3 +12,5 @@
   - `--input-path` file to csv file with columns: `data,account,type,name,units,price_in_currency,currency,full_cost,comments`
   - `--output-mode` (print or file)
   - `--output-path` path to output csv file
+
+## Taxes:
