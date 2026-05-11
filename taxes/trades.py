@@ -1,3 +1,4 @@
+import os.path
 from copy import deepcopy
 from collections import defaultdict
 from dataclasses import dataclass
@@ -22,11 +23,41 @@ class TradeEntry:
     def year(self) -> str:
         return str(self.date.year)
 
+    def __eq__(self, other) -> bool:
+        conds = [self.symbol == other.symbol, self.type == other.type,
+                 self.amount == other.amount,
+                 self.price == other.price, self.date == other.date]
+
+        if not all(conds):
+            return False
+        return True
+
+    def problem(self, other):
+        #TODO: not 24 clock in ibkr statement
+        if self.date.date() == other.date.date() and self != other:
+            raise NotImplementedError("Few trades in the same day for ibkr")
+
+
+    def __lt__(self, other) -> bool:
+        self.problem(other)
+        return self.date < other.date
+
+
+    def __gt__(self, other) -> bool:
+        self.problem(other)
+        return self.date > other.date
+
 
 class Trades:
 
     def __init__(self):
         self._trades = defaultdict(list)
+
+    def __getitem__(self, symbol: str):
+        trades_symbol = self._trades.get(symbol)
+        if trades_symbol is None:
+            raise KeyError(f"Trade symbol not found: {symbol} in data")
+        return trades_symbol
 
     def add_trade(self, symbol: str, trade_data: TradeEntry):
         self._trades[symbol].append(trade_data)
@@ -34,6 +65,8 @@ class Trades:
     def sort_trades_by_date(self):
         for symbol in self._trades:
             self._trades[symbol].sort(key=lambda trade: trade.date)
+
+
 
 
 class Statements:
@@ -47,6 +80,8 @@ class Statements:
         return deepcopy(self._trades)
 
     def _read_statement(self):
+        if not os.path.exists(self._statement_path):
+            raise FileNotFoundError(f"State file not found: {self._statement_path}")
         with open(self._statement_path, "r") as f:
             txt = f.readlines()
 
@@ -57,9 +92,10 @@ class Statements:
             if line.startswith("Trades,Data,Order,Stocks"):
                 data = line.strip().split(",")
                 symbol = data[5]
-                date = datetime.strptime(data[6][1:], "%Y-%m-%d")
+                #TODO: problem with not 24h clock from ibkr
+                date = datetime.strptime(f"{data[6][1:]}_{data[7][:-1].strip()}", "%Y-%m-%d_%H:%M:%S")
                 type = data[-1]
-                amount = float(data[8])
+                amount = abs(float(data[8]))
                 price = float(data[9])
                 currency = data[4]
                 commission = float(data[12])
@@ -67,7 +103,7 @@ class Statements:
                 trade_entry = TradeEntry(symbol=symbol, date=date, type=type, amount=amount,
                                          price=price, currency=currency, commission=commission)
 
-                self.trades.add_trade(symbol, trade_entry)
-        self.trades.sort_trades_by_date()
+                self._trades.add_trade(symbol, trade_entry)
+        self._trades.sort_trades_by_date()
 
         return self.trades
