@@ -1,14 +1,10 @@
 from copy import deepcopy
-from datetime import date, timedelta
-from workalendar.europe import Poland
-
-from reconing_rules import ReckoningRules
+from typing import List, Tuple
 
 # from fx_data import FXData
 # from taxes import trades
 
-from typing import List, Tuple
-
+from reconing_rules import ReckoningRules, ReckoningRulesConfig
 from trades import Statements, TradeEntry
 
 class CalculateIncome:
@@ -18,16 +14,9 @@ class CalculateIncome:
     def __init__(self, statement_path: str):
         self.statements = Statements(statement_path)
         self.trades = self.statements.split_statement_into_trade_entries()
-        self.cal = Poland()
-        self.reckoning_rules = ReckoningRules()
+
+        self.reckoning_rules = ReckoningRules(ReckoningRulesConfig())
         self._fx_data = None
-
-    def get_day_of_fx_calculation(self, transaction_date: date) -> date:
-        fx_calc_date = transaction_date - timedelta(days=self.reckoning_rules.fx_calculation_day)
-        while not self.cal.is_working_day(fx_calc_date): # looking for first workday for fx calculation
-            fx_calc_date = fx_calc_date - timedelta(days=1)
-        return fx_calc_date
-
 
     def calculate_income_costs(self, symbol: str):
         all_trades = deepcopy(self.trades)
@@ -47,7 +36,7 @@ class CalculateIncome:
 
                 #TODO: not tested yet
                 # do fx calc, income calc
-                # self.get_day_of_fx_calculation()
+                #  fx_calculation_date = self.reckoning_rules.get_day_of_fx_calculation()
 
                 all_trades.remove_trades(symbol, used_buys)
                 all_trades.remove_trades(symbol, sell)
