@@ -4,3 +4,4 @@ matplotlib==3.8.3
 beautifulsoup4==4.12.3
 requests==2.32.5
 xlrd==2.0.2
+workalendar==17.0.0

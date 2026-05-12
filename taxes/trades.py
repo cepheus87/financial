@@ -66,6 +66,25 @@ class Trades:
         for symbol in self._trades:
             self._trades[symbol].sort(key=lambda trade: trade.date)
 
+    def remove_trades(self, symbol: str, trades_to_remove: list[TradeEntry]):
+        if symbol not in self._trades:
+            raise KeyError(f"Trade symbol not found: {symbol} in data")
+
+        to_remove_idx = []
+        for trade in trades_to_remove:
+            for i, tr in enumerate(self._trades[symbol]):
+                if trade == tr:
+                    to_remove_idx.append(i)
+                    break
+
+        if len(to_remove_idx) != len(trades_to_remove):
+            raise ValueError(f"Not all trade entry were found to remove for symbol {symbol}")
+        else:
+            for i in reversed(to_remove_idx):
+                del self._trades[symbol][i]
+
+
+
 
 
 

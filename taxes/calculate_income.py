@@ -1,4 +1,8 @@
+from copy import deepcopy
+from datetime import date, timedelta
+from workalendar.europe import Poland
 
+from reconing_rules import ReckoningRules
 
 # from fx_data import FXData
 # from taxes import trades
@@ -14,10 +18,22 @@ class CalculateIncome:
     def __init__(self, statement_path: str):
         self.statements = Statements(statement_path)
         self.trades = self.statements.split_statement_into_trade_entries()
+        self.cal = Poland()
+        self.reckoning_rules = ReckoningRules()
         self._fx_data = None
 
-    def calculate_income(self, symbol: str):
-        trades_symbol = self.trades[symbol]
+    def get_day_of_fx_calculation(self, transaction_date: date) -> date:
+        fx_calc_date = transaction_date - timedelta(days=self.reckoning_rules.fx_calculation_day)
+        while not self.cal.is_working_day(fx_calc_date): # looking for first workday for fx calculation
+            fx_calc_date = fx_calc_date - timedelta(days=1)
+        return fx_calc_date
+
+
+    def calculate_income_costs(self, symbol: str):
+        all_trades = deepcopy(self.trades)
+        trades_symbol = all_trades[symbol]
+
+        income, costs = [], []
 
         if self.check_if_sold(trades_symbol):
             sell_entries = self.get_sell_entries(trades_symbol)
@@ -29,7 +45,13 @@ class CalculateIncome:
                 if last_entry is not None:
                     raise NotImplementedError("Partial use of buy entry not implemented yet")
 
-                #TODO: modify statement of used buys
+                #TODO: not tested yet
+                # do fx calc, income calc
+                # self.get_day_of_fx_calculation()
+
+                all_trades.remove_trades(symbol, used_buys)
+                all_trades.remove_trades(symbol, sell)
+
 
             #TODO: Finished here, implement getting fx_value and income calculation
 
@@ -100,7 +122,7 @@ def main():
     # fx_val = fx.get_fx_value("2025-12-02", "USD")
 
     calculator = CalculateIncome("statements.csv")
-    calculator.calculate_income("4GLD")
+    calculator.calculate_income_costs("4GLD")
 
     a = 1
 
