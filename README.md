@@ -14,3 +14,18 @@
   - `--output-path` path to output csv file
 
 ## Taxes:
+
+ TODO:
+* create CLI for tax scripts
+* ADD DESCRIPTION OF TAXES SCRIPTS
+
+
+
+#### TODO List:
+ * check days of reckoning for tax purposes
+
+ * handle using not all units from buy entry during selling
+ * handle downloading fx_data for current year if already cached
+ * handle ibkr hours of trades (12 hours clock)
+ * add tests to ibkr trades format parsing
+ * add joining statements from different files (e.g. few years)

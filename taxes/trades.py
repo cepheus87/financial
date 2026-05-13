@@ -13,7 +13,7 @@ from datetime import datetime
 class TradeEntry:
     symbol: str
     date: datetime
-    type: str
+    entry_type: str
     amount: float
     price: float
     currency: str
@@ -24,7 +24,7 @@ class TradeEntry:
         return str(self.date.year)
 
     def __eq__(self, other) -> bool:
-        conds = [self.symbol == other.symbol, self.type == other.type,
+        conds = [self.symbol == other.symbol, self.entry_type == other.entry_type,
                  self.amount == other.amount,
                  self.price == other.price, self.date == other.date]
 
@@ -113,13 +113,13 @@ class Statements:
                 symbol = data[5]
                 #TODO: problem with not 24h clock from ibkr
                 date = datetime.strptime(f"{data[6][1:]}_{data[7][:-1].strip()}", "%Y-%m-%d_%H:%M:%S")
-                type = data[-1]
+                entry_type = data[-1]
                 amount = abs(float(data[8]))
                 price = float(data[9])
                 currency = data[4]
-                commission = float(data[12])
+                commission = abs(float(data[12]))
 
-                trade_entry = TradeEntry(symbol=symbol, date=date, type=type, amount=amount,
+                trade_entry = TradeEntry(symbol=symbol, date=date, entry_type=entry_type, amount=amount,
                                          price=price, currency=currency, commission=commission)
 
                 self._trades.add_trade(symbol, trade_entry)

@@ -1,10 +1,12 @@
+from collections import defaultdict
 from copy import deepcopy
-from typing import List, Tuple
+from datetime import date
+from typing import List, Tuple, Dict
 
-# from fx_data import FXData
+from fx_data import FXData
 # from taxes import trades
 
-from reconing_rules import ReckoningRules, ReckoningRulesConfig
+from reckoning_rules import ReckoningRules, ReckoningRulesConfig
 from trades import Statements, TradeEntry
 
 class CalculateIncome:
@@ -16,35 +18,41 @@ class CalculateIncome:
         self.trades = self.statements.split_statement_into_trade_entries()
 
         self.reckoning_rules = ReckoningRules(ReckoningRulesConfig())
-        self._fx_data = None
+        self._fx_data = FXData([str(date.today().year - 1)])  # load previous year
 
-    def calculate_income_costs(self, symbol: str):
+    def calculate_income_costs(self, symbol: str) -> Tuple[Dict[str, List], Dict[str, List]]:
         all_trades = deepcopy(self.trades)
         trades_symbol = all_trades[symbol]
 
-        income, costs = [], []
+        income, costs = defaultdict(list), defaultdict(list)
 
         if self.check_if_sold(trades_symbol):
             sell_entries = self.get_sell_entries(trades_symbol)
 
             for sell in sell_entries:
+                sell_symbol = sell.symbol
                 previous_buys = [entry for entry in trades_symbol if entry < sell]
                 used_buys, last_entry = self.get_fifo_buys(sell, previous_buys)
 
                 if last_entry is not None:
                     raise NotImplementedError("Partial use of buy entry not implemented yet")
 
-                #TODO: not tested yet
-                # do fx calc, income calc
-                #  fx_calculation_date = self.reckoning_rules.get_day_of_fx_calculation()
+                for buy in used_buys:
+                    fx_calc_date = self.reckoning_rules.get_day_of_fx_calculation(buy.date.date())
+                    self._fx_data.add_year(str(fx_calc_date.year))
+                    fx_value = self._fx_data.get_fx_value(str(fx_calc_date), buy.currency)
+                    costs[sell_symbol].append((buy.amount * buy.price + buy.commission) * fx_value)
+
+
+                fx_calc_date = self.reckoning_rules.get_day_of_fx_calculation(sell.date.date())
+                self._fx_data.add_year(str(fx_calc_date.year))
+                fx_value = self._fx_data.get_fx_value(str(fx_calc_date), sell.currency)
+                income[sell_symbol].append((sell.amount * sell.price - sell.commission) * fx_value)
 
                 all_trades.remove_trades(symbol, used_buys)
-                all_trades.remove_trades(symbol, sell)
+                all_trades.remove_trades(symbol, [sell])
 
-
-            #TODO: Finished here, implement getting fx_value and income calculation
-
-        a = 1
+        return income, costs
 
     @staticmethod
     def get_fifo_buys(sell: TradeEntry, previous_buys: List[TradeEntry]) -> Tuple[List[TradeEntry],
@@ -83,7 +91,7 @@ class CalculateIncome:
     def get_sell_entries(cls, trades: List[TradeEntry]):
         sell_entries = []
         for trade in trades:
-            t_types = trade.type.split(";")
+            t_types = trade.entry_type.split(";")
             for t in t_types:
                 if t in cls.SELL_INDICATORS:
                     sell_entries.append(trade)
@@ -111,7 +119,12 @@ def main():
     # fx_val = fx.get_fx_value("2025-12-02", "USD")
 
     calculator = CalculateIncome("statements.csv")
-    calculator.calculate_income_costs("4GLD")
+    income, costs = calculator.calculate_income_costs("4GLD")
+
+    for symbol, income_vals in income.items():
+        print(f"Income: for {symbol}: {sum(income_vals)} PLN")
+    for symbol, costs_vals in costs.items():
+        print(f"Costs: for {symbol}: {sum(costs_vals)} PLN")
 
     a = 1
 

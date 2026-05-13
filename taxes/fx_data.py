@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import re
-from typing import List
+from typing import List, Dict
 
 
 
@@ -16,13 +16,16 @@ class FXData:
 
 
     def __init__(self, years: List[str]):
+        if not isinstance(years, list):
+            raise TypeError("Years must be a list.")
         self.years = years
-        self.year_urls = {year: f"{self.BASE_NBP_URL}{self._get_filename(year)}" for year in self.years}
+        self.year_urls = self._get_urls(years)
 
         if not os.path.exists(self.CACHED_DATA_PATH):
             os.makedirs(self.CACHED_DATA_PATH)
 
         self.cached_years = self.get_cached_years()
+        # TODO add checking current year if ranged data is already downloaded
         self.download_data(list(set(years).difference(self.cached_years)))
         self._full_data = None
 
@@ -31,6 +34,15 @@ class FXData:
         if self._full_data is None:
             self._load_all_data()
         return self._full_data.copy()
+
+    def _get_urls(self, years: List[str]) -> Dict:
+        return {year: f"{self.BASE_NBP_URL}{self._get_filename(year)}" for year in years}
+
+    def add_year(self, year: str):
+        if year not in self.years:
+            self.years.append(year)
+            self.year_urls.update(self._get_urls([year]))
+            self.download_data(list({year}.difference(self.cached_years)))
 
     def _load_all_data(self):
         dfs = []
