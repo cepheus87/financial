@@ -32,18 +32,18 @@ class TradeEntry:
             return False
         return True
 
-    def problem(self, other):
-        #TODO: not 24 clock in ibkr statement
+    def problem(self, other: "TradeEntry"):
+        #TODO: not 24 format of clock in ibkr statement
         if self.date.date() == other.date.date() and self != other:
             raise NotImplementedError("Few trades in the same day for ibkr")
 
 
-    def __lt__(self, other) -> bool:
+    def __lt__(self, other: "TradeEntry") -> bool:
         self.problem(other)
         return self.date < other.date
 
 
-    def __gt__(self, other) -> bool:
+    def __gt__(self, other: "TradeEntry") -> bool:
         self.problem(other)
         return self.date > other.date
 
@@ -58,6 +58,9 @@ class Trades:
         if trades_symbol is None:
             raise KeyError(f"Trade symbol not found: {symbol} in data")
         return trades_symbol
+
+    def get_all_symbols(self):
+        return list(self._trades.keys())
 
     def add_trade(self, symbol: str, trade_data: TradeEntry):
         self._trades[symbol].append(trade_data)
@@ -83,9 +86,12 @@ class Trades:
             for i in reversed(to_remove_idx):
                 del self._trades[symbol][i]
 
-
-
-
+    def merge_trades(self, trades_to_merge: list["Trades"]):
+        for trades in trades_to_merge:
+            for symbol, trade_entries in trades._trades.items():
+                for trade_entry in trade_entries:
+                    self.add_trade(symbol, trade_entry)
+        self.sort_trades_by_date()
 
 
 class Statements:
