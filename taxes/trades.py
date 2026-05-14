@@ -4,10 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 
-
-# Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
-# Trades,Data,Order,Stocks,EUR,XDEB,"2026-01-26, 08:21:01",51,41.79,41.85,-2131.29,-1.36377676,2132.65377676,0,3.06,O
-
+from taxes.statement_format_check import check_ibkr_statement_format
 
 @dataclass
 class TradeEntry:
@@ -115,6 +112,7 @@ class Statements:
     def split_statement_into_trade_entries(self) -> Trades:
         for line in self._statement_txt:
             if line.startswith("Trades,Data,Order,Stocks"):
+                check_ibkr_statement_format(line)
                 data = line.strip().split(",")
                 symbol = data[5]
                 #TODO: problem with not 24h clock from ibkr
@@ -130,5 +128,8 @@ class Statements:
 
                 self._trades.add_trade(symbol, trade_entry)
         self._trades.sort_trades_by_date()
+
+        if len(self.trades.get_all_symbols()) == 0:
+            raise RuntimeError(f"No trades were found for {self._statement_path}")
 
         return self.trades

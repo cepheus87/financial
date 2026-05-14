@@ -51,6 +51,6 @@ options:
  * handle using not all units from buy entry during selling
  * handle downloading fx_data for current year if already cached
  * handle ibkr hours of trades (12 hours clock)
- * add tests to ibkr trades format parsing
+
  
  
