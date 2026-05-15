@@ -36,8 +36,12 @@ options:
 
  [reckoning_rules.py](taxes/reckoning_rules.py) - contain rules of selecting proper day of fx conversion of trades 
  with respect to settlement date. It also takes into account working days of stock exchanges (LSE and XETRA) and 
- possible holidays of these stocks (TODO: will be in the future) and holidays in Poland (for average fx conversion 
+ possible holidays of these stocks and holidays in Poland (for average fx conversion 
  rate). At the moment, it supports only XETRA and LSE settlement rules (T+2).
+ To calculate fx conversion date, first working date is taken after settlement date (if it is not working date). Then 
+ the latest working day (in Poland) before settlement date is chosen to calculate average fx conversion rate for given day.
+ 
+**NOTE Stock exchange is selected based on the trade currency (if it is EUR - XETRA, if it is GBP or USD - LSE).**
 
  [trades.py](taxes/trades.py) - contain functions to parse trades from csv files (at the moment only ibkr's 
  statement is supported) and convert them to internal format used for income and cost calculation. It assumes that 
@@ -45,9 +49,6 @@ options:
 
 
 #### TODO List:
- * check days of reckoning for tax purposes
-   * Check working days for statements for LSE and XETRA
- * add sell calculation for selected year - select income for selling transactions of given year
  * handle using not all units from buy entry during selling
  * handle downloading fx_data for current year if already cached
  * handle ibkr hours of trades (12 hours clock)
