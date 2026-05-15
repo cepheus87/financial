@@ -62,8 +62,12 @@ class Trades:
     def add_trade(self, symbol: str, trade_data: TradeEntry):
         self._trades[symbol].append(trade_data)
 
-    def sort_trades_by_date(self):
-        for symbol in self._trades:
+    def sort_trades_by_date(self, symbol: str | None = None):
+        if symbol is None:
+            symbols = self.get_all_symbols()
+        else:
+            symbols = [symbol]
+        for symbol in symbols:
             self._trades[symbol].sort(key=lambda trade: trade.date)
 
     def remove_trades(self, symbol: str, trades_to_remove: list[TradeEntry]):

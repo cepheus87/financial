@@ -60,10 +60,9 @@ class CalculateIncome:
                     sell_symbol = sell.symbol
                     # choosing entries that will be sold by FIFO order
                     previous_buys = [entry for entry in trades_symbol if entry < sell]
-                    used_buys, last_entry = self.get_fifo_buys(sell, previous_buys)
+                    used_buys, rest = self.get_fifo_buys(sell, previous_buys)
 
-                    if last_entry is not None:
-                        raise NotImplementedError("Partial use of buy entry not implemented yet")
+
 
                     # calculating day of fx_value that must be used for buy entries
                     for buy in used_buys:
@@ -80,6 +79,10 @@ class CalculateIncome:
 
                     all_trades.remove_trades(symbol, used_buys)
                     all_trades.remove_trades(symbol, [sell])
+                    if rest is not None:
+                        all_trades.add_trade(symbol, rest)
+                        all_trades.sort_trades_by_date(symbol)
+
 
         return income, costs
 
@@ -108,7 +111,9 @@ class CalculateIncome:
         if sum([ub.amount for ub in used_buys]) == sell.amount:
             return used_buys, None
         else:
-            return used_buys, used_buys[-1]
+            rest = deepcopy(used_buys[-1])
+            rest.amount = sum([ub.amount for ub in used_buys]) - sell.amount
+            return used_buys, rest
 
 
     @classmethod

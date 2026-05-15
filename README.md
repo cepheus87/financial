@@ -21,7 +21,7 @@
 ```commandline
 usage: calculate_income.py [-h] --statement-paths STATEMENT_PATHS
                            [STATEMENT_PATHS ...]
-                           [--entity-symbol ENTITY_SYMBOL]
+                           [--entity-symbol ENTITY_SYMBOL] --tax-year TAX_YEAR
 
 options:
   -h, --help            show this help message and exit
@@ -30,6 +30,7 @@ options:
   --entity-symbol ENTITY_SYMBOL
                         Entity symbol to calculate income and costs for
                         (default: all entities)
+  --tax-year TAX_YEAR   Tax year to calculate income and costs for
 ```
 
  The script uses the FIFO order of transactions to calculate income and costs for each entity.
@@ -49,9 +50,9 @@ options:
 
 
 #### TODO List:
- * handle using not all units from buy entry during selling
  * handle downloading fx_data for current year if already cached
  * handle ibkr hours of trades (12 hours clock)
+ * split flow for many brokers statements (at the moment only ibkr is supported)
 
  
  
