@@ -5,11 +5,11 @@ from copy import deepcopy
 from datetime import date
 from typing import List, Tuple, Dict
 
-from fx_data import FXData
+from taxes.fx_data import FXData
 # from taxes import trades
 
-from reckoning_rules import ReckoningRules, ReckoningRulesConfig
-from trades import Statements, TradeEntry
+from taxes.reckoning_rules import ReckoningRules, ReckoningRulesConfig
+from taxes.trades import Statements, TradeEntry
 
 class CalculateIncome:
     SELL_INDICATORS = ["C"]
@@ -59,10 +59,10 @@ class CalculateIncome:
                 for sell in sell_entries:
                     sell_symbol = sell.symbol
                     # choosing entries that will be sold by FIFO order
+
+                    # TODO: split previous buys selection into function that can be tested
                     previous_buys = [entry for entry in trades_symbol if entry < sell]
                     used_buys, rest = self.get_fifo_buys(sell, previous_buys)
-
-
 
                     # calculating day of fx_value that must be used for buy entries
                     for buy in used_buys:

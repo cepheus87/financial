@@ -53,6 +53,7 @@ options:
  * handle downloading fx_data for current year if already cached
  * handle ibkr hours of trades (12 hours clock)
  * split flow for many brokers statements (at the moment only ibkr is supported)
+ * split previous buys selection into function that can be tested
 
  
  
