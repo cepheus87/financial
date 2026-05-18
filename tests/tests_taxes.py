@@ -25,13 +25,6 @@ Trades,Data,Order,Stocks,{currency},{symbol},"{year}-03-20, 04:34:51",-{sell_amo
     """
     return statement
 
-#TODO
-
-"""
-Tests for
-  * merging many statement files
-"""
-
 
 
 @pytest.mark.parametrize("symbol, currency, sell_amount, expected_used_buys, expected_rest_amount",
@@ -63,6 +56,43 @@ def test_selling_amount(symbol, currency, sell_amount, expected_used_buys, expec
             assert len(used_buys) == expected_used_buys
             if rest:
                 assert rest.amount == expected_rest_amount
+
+
+def test_statement_merge():
+    year1 = "2025"
+    year2 = "2026"
+
+    symbol = "4GLD"
+    currency = "EUR"
+    sell_amount = "7"
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        csv_path1 = os.path.join(tmpdirname, "statement1.csv")
+        with open(csv_path1, "w") as f:
+            f.write(example_statement(symbol, currency, year1,  sell_amount=sell_amount))
+
+        csv_path2 = os.path.join(tmpdirname, "statement2.csv")
+        with open(csv_path2, "w") as f:
+            f.write(example_statement(symbol, currency, year2, sell_amount=sell_amount))
+
+        with patch("taxes.trades.check_ibkr_statement_format", lambda row: None):
+            calc_inc = CalculateIncome([csv_path2, csv_path1])
+
+            trades = calc_inc.trades[symbol]
+
+            # check sorting
+            assert trades[0].date.year == int(year1)
+            assert trades[-1].date.year == int(year2)
+
+            assert len(trades) == 10
+
+            sell_entries = calc_inc.get_sell_entries(trades, year1)
+            assert len(sell_entries) == 1
+            assert sell_entries[0].date.year == int(year1)
+
+            sell_entries = calc_inc.get_sell_entries(trades, year2)
+            assert len(sell_entries) == 1
+            assert sell_entries[0].date.year == int(year2)
 
 
 @pytest.mark.parametrize("currency, sell_date, days_of_reckoning_by_stock, fx_calculation_day, expected_date",
