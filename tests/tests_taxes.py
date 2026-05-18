@@ -1,3 +1,4 @@
+from datetime import date
 import pytest
 import tempfile
 import os
@@ -10,6 +11,7 @@ if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
 from taxes.calculate_income import CalculateIncome
+from taxes.reckoning_rules import ReckoningRules, ReckoningRulesConfig
 
 
 def example_statement(symbol, currency, year= "2026", sell_amount = "8" ):
@@ -27,7 +29,6 @@ Trades,Data,Order,Stocks,{currency},{symbol},"{year}-03-20, 04:34:51",-{sell_amo
 
 """
 Tests for
- * fx date selection based on currency
   * merging many statement files
 """
 
@@ -62,4 +63,48 @@ def test_selling_amount(symbol, currency, sell_amount, expected_used_buys, expec
             assert len(used_buys) == expected_used_buys
             if rest:
                 assert rest.amount == expected_rest_amount
+
+
+@pytest.mark.parametrize("currency, sell_date, days_of_reckoning_by_stock, fx_calculation_day, expected_date",
+                         [
+                             # normal
+                             ("USD", date(2026, 5, 26), 2, 1, date(2026, 5, 27)),
+                             ("EUR", date(2026, 5, 26), 2, 1, date(2026, 5, 27)),
+                             ("PLN", date(2026, 5, 26), 2, 1, date(2026, 5, 27)),
+                             ("GBP", date(2026, 5, 26), 2, 1, date(2026, 5, 27)),
+                             ("USD", date(2026, 5, 26), 1, 1, date(2026, 5, 26)),
+                             ("EUR", date(2026, 5, 26), 1, 1, date(2026, 5, 26)),
+                             ("PLN", date(2026, 5, 26), 1, 1, date(2026, 5, 26)),
+                             ("GBP", date(2026, 5, 26), 1, 1, date(2026, 5, 26)),
+                             ("USD", date(2026, 5, 26), 2, 0, date(2026, 5, 28)),
+                             ("EUR", date(2026, 5, 26), 2, 0, date(2026, 5, 28)),
+                             ("PLN", date(2026, 5, 26), 2, 0, date(2026, 5, 28)),
+                             ("GBP", date(2026, 5, 26), 2, 0, date(2026, 5, 28)),
+                             # weekend
+                             ("USD", date(2026, 5, 15), 2, 1, date(2026, 5, 15)),
+                             ("EUR", date(2026, 5, 15), 2, 1, date(2026, 5, 15)),
+                             ("PLN", date(2026, 5, 15), 2, 1, date(2026, 5, 15)),
+                             ("GBP", date(2026, 5, 15), 2, 1, date(2026, 5, 15)),
+                             # holiday in Poland 2026-6-4
+                             ("USD", date(2026, 6, 3), 2, 1, date(2026, 6, 3)),
+                             ("EUR", date(2026, 6, 3), 2, 1, date(2026, 6, 3)),
+                             ("GBP", date(2026, 6, 3), 2, 1, date(2026, 6, 3)),
+                             ("PLN", date(2026, 6, 3), 2, 1, date(2026, 6, 3)),
+                             # holiday in Germany 2026-5-1, 2026-12-24
+                             ("EUR", date(2026, 4, 29), 2, 1, date(2026, 4, 30)),
+                             ("EUR", date(2026, 12, 22), 2, 1, date(2026, 12, 23)),
+                             ("USD", date(2026, 12, 22), 2, 1, date(2026, 12, 23)),
+                             # # holiday in UK 2025-05-04
+                             ("USD", date(2026, 4, 30), 2, 1, date(2026, 5, 4)),
+                             ("GBP", date(2026, 4, 30), 2, 1, date(2026, 5, 4)),
+                             ("EUR", date(2026, 4, 30), 2, 1, date(2026, 4, 30)),
+                          ]
+                         )
+def test_fx_calc_date(currency, sell_date, days_of_reckoning_by_stock, fx_calculation_day, expected_date):
+    rec_rules_conf = ReckoningRulesConfig(days_of_reckoning_by_stock=days_of_reckoning_by_stock,
+                                          fx_calculation_day=fx_calculation_day)
+    reckoning_rules = ReckoningRules(rec_rules_conf)
+
+    calc_date = reckoning_rules.get_day_of_fx_calculation(sell_date, currency)
+    assert calc_date == expected_date
 

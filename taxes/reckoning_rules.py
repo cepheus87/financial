@@ -13,6 +13,13 @@ class PolandCalFix(Poland):
             return False
         return super().is_working_day(day, extra_working_days, extra_holidays)
 
+class GermanyCalFix(Germany):
+    def is_working_day(self, day,
+                           extra_working_days=None, extra_holidays=None):
+        if day.month == 10 and day.day == 3: # 03.10 Xetra is working however it is holiday
+            return True
+        return super().is_working_day(day, extra_working_days, extra_holidays)
+
 @dataclass
 class ReckoningRulesConfig:
     days_of_reckoning_by_stock: int = 2 # number of days after transaction in which stock proceeded transaction (
@@ -25,7 +32,7 @@ class ReckoningRules:
         self.config = config
         self.pol_cal = PolandCalFix() # GPW
         self.uk_cal = UnitedKingdom() # LSE
-        self.ge_cal = Germany() # XETRA
+        self.ge_cal = GermanyCalFix() # XETRA
 
     def get_day_of_fx_calculation(self, transaction_date: date, trade_currency: str) -> date:
         if trade_currency == "USD" or trade_currency == "GBP": #assumption that USD only bought on LSE
