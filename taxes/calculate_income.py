@@ -60,8 +60,7 @@ class CalculateIncome:
                     sell_symbol = sell.symbol
                     # choosing entries that will be sold by FIFO order
 
-                    # TODO: split previous buys selection into function that can be tested
-                    previous_buys = [entry for entry in trades_symbol if entry < sell]
+                    previous_buys = self._get_previous_buys(sell, trades_symbol)
                     used_buys, rest = self.get_fifo_buys(sell, previous_buys)
 
                     # calculating day of fx_value that must be used for buy entries
@@ -85,6 +84,14 @@ class CalculateIncome:
 
 
         return income, costs
+
+    @staticmethod
+    def _get_previous_buys(sell: TradeEntry, trades: List[TradeEntry]) -> List[TradeEntry]:
+        previous_buys = []
+        for entry in trades:
+            if entry < sell:
+                previous_buys.append(entry)
+        return previous_buys
 
     @staticmethod
     def get_fifo_buys(sell: TradeEntry, previous_buys: List[TradeEntry]) -> Tuple[List[TradeEntry],
